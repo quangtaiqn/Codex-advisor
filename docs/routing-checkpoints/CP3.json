@@ -1,0 +1,49 @@
+{
+  "checkpoint": "CP3",
+  "status": "COMPLETE",
+  "plan": "Advisor_New_Plan.md",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "code_commit": "898c25e",
+  "parent_receipt_sha256": "sha256:7d34a452613466124fbe0ca3ba98b9eed4f55bc925eaf0edfc9cf161609838f9",
+  "checks": [
+    {
+      "command": "python -m unittest tests.test_advisor_policy",
+      "status": "PASS",
+      "result": "10 tests, 0 failures"
+    },
+    {
+      "command": "python -m py_compile plugins/advisor/tests/test_advisor_policy.py plugins/advisor/tests/test_advisor_cli.py plugins/advisor/tests/test_advisor_transport.py plugins/advisor/tests/test_advisor_usage.py",
+      "status": "PASS"
+    },
+    {
+      "command": "sh -n plugins/advisor/scripts/run-advisor.sh plugins/advisor/scripts/inspect-agent-runtime.sh plugins/advisor/scripts/advisor-config.sh",
+      "status": "PASS",
+      "evidence": "Git for Windows sh.exe"
+    },
+    {
+      "command": "one-pass static assertions",
+      "status": "PASS",
+      "evidence": "one codex exec path; no two-attempt loop; no corrective retry; attempt 1 of 1"
+    },
+    {
+      "command": "POSIX transport behavioral suite",
+      "status": "UNAVAILABLE",
+      "reason": "Git Bash is present but jq and python3 are not available in that POSIX PATH; no dependency was installed."
+    },
+    {
+      "command": "git diff --cached --check",
+      "status": "PASS"
+    }
+  ],
+  "changed_files_digest": "sha256:6814230efba09c567a54b61de341325f18390e0748577380a6d631d12cdf2975",
+  "advisor_opportunity": {
+    "model": "gpt-6-astra",
+    "reasoning_effort": "low",
+    "status": "accepted",
+    "escalation": "NONE",
+    "scope": "one-pass transport, explicit runtime pair, and compatibility canary behavior"
+  },
+  "implementation_started": true,
+  "next_action": "Execute CP4 RED tests and implement durable checkpoint reservation/resume state"
+}
