@@ -106,7 +106,7 @@ write_observed_runtime() {
     --arg effort "low" \
     --arg sandbox "$sandbox" \
     --arg permission_profile_type "$permission_profile_type" \
-    '{thread_id:$thread_id,parent_thread_id:$parent_thread_id,agent_role:$agent_role,transport:$transport,model:$model,effort:"high",sandbox_policy_type:$sandbox,permission_profile_type:$permission_profile_type}' \
+    '{thread_id:$thread_id,parent_thread_id:$parent_thread_id,agent_role:$agent_role,transport:$transport,model:$model,effort:$effort,sandbox_policy_type:$sandbox,permission_profile_type:$permission_profile_type}' \
     >"$output" || return 1
 }
 

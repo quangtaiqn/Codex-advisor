@@ -314,8 +314,10 @@ it never implies that a technical choice was accepted when no technical choice w
   implementation role or bypass repository routing policy.
 - The advisor is pre-decision consultation, not post-implementation review.
 - A checkpoint ledger reserves each level before launch and records completed, failed,
-  or uncertain outcomes. Restart/recovery never silently reopens a consumed level;
-  implementation-started locks the checkpoint. The optional usage journal is separate
+  or uncertain outcomes. Restart/recovery resumes from the recorded next action;
+  a reserved level without terminal evidence is reconciled to `uncertain` and
+  blocked, never replayed, while a completed level may continue only through its
+  verified adjacent escalation. Implementation-started locks the checkpoint. The optional usage journal is separate
   and cannot clear the safety ledger.
 - No hooks, MCP server, connector, API key, network service, telemetry, or
   scheduled task is introduced.

@@ -276,7 +276,15 @@ chain_reserve() {
   chain_action=$(printf '%s' "$chain_result" | jq -r '.action // empty') || fail 'invalid checkpoint reservation'
   case "$chain_action" in
     launch) chain_reserved=true ;;
-    resume_required) fail 'checkpoint reservation already exists; reconciliation is required before resume' ;;
+    resume_required)
+      reconcile_status=0
+      reconcile_result=$(python3 "$chain_script" reconcile \
+        --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
+        --level "$level" --failure-code unknown 2>/dev/null) || reconcile_status=$?
+      [ "$reconcile_status" -eq 0 ] || fail 'checkpoint reservation reconciliation is unavailable'
+      reconcile_action=$(printf '%s' "$reconcile_result" | jq -r '.action // empty') || fail 'invalid checkpoint reconciliation'
+      [ "$reconcile_action" = blocked ] || fail 'checkpoint reservation reconciled to an unsupported state'
+      fail 'checkpoint reservation was interrupted; marked uncertain and no same-level replay is allowed' ;;
     *) fail 'checkpoint reservation returned an unsupported action' ;;
   esac
 }

@@ -55,11 +55,13 @@ accept/modify/reject; final review remains separate.
 
 When a checkpoint key is present, reserve the level before launch and persist an
 atomic owner-only state record containing packet/policy digests, reserved and
-completed levels, status, implementation lock, and next action. Resume reuses a
-reserved level; uncertain post-reservation state fails closed and never spends
-the same level again. Clearing usage journal state never clears the safety
-ledger. This bounds token burn by cheap preflight, skip rules, compact packets,
-one chain/checkpoint, one pass/level, no response retry, and stop-on-sufficient;
+completed levels, status, implementation lock, and next action. Resume continues
+from the recorded next action; if a reserved level has no terminal evidence, the
+reconciliation path marks it uncertain and blocks without replaying that level.
+Only a completed level with a verified adjacent escalation can resume at the next
+level. Clearing usage journal state never clears the safety ledger. This bounds
+token burn by cheap preflight, skip rules, compact packets, one chain/checkpoint,
+one pass/level, no response retry, and stop-on-sufficient;
 the plugin does not claim a hard token cap.
 
 Use one fresh, read-only, zero-tool advisor only when the task has a concrete material
@@ -281,8 +283,10 @@ FOLLOW-UP AREAS: <follow_up_areas>
    failure emits only its redacted failure `class` and `field` on stderr and stops.
    It performs no corrective retry, launches no second child for the same level,
    or copies rejected content into a retry prompt. The durable checkpoint ledger
-   consumes the reserved level even when the process is interrupted; resume reconciles
-   the recorded state rather than replaying it.
+   consumes the reserved level even when the process is interrupted. Resume reconciles
+   a reserved state through the ledger; an indeterminate reservation becomes
+   `uncertain` and blocked, while a completed level resumes only at its recorded
+   adjacent next action. It never replays the same level.
    Packet, launcher, event, identity,
    same-session, runtime, wrong-model, wrong-effort, non-read-only, normalization, provenance, or tool-use failure
    is terminal and never retries. A second response-validation failure fails closed.

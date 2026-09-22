@@ -576,6 +576,45 @@ class ChainStore:
             failure_code=failure_code,
         )
 
+    def reconcile(
+        self,
+        checkpoint_key: str,
+        *,
+        policy_digest: str,
+        level: str,
+        failure_code: str = "unknown",
+    ) -> dict[str, Any]:
+        """Reconcile an interrupted reservation without replaying its level."""
+
+        if level not in LEVELS:
+            raise ChainError("unsupported advisor level")
+        if failure_code not in FAILURE_CODES:
+            raise ChainError("invalid reconciliation failure code")
+        policy_digest = _digest(policy_digest, label="policy digest")
+        checkpoint, path = self._path(checkpoint_key)
+        with _state_lock(self.root):
+            state = self._load_unlocked(path)
+            if state is None:
+                raise ChainError("checkpoint reservation is missing")
+            self._check_identity(state, checkpoint=checkpoint, policy_digest=policy_digest)
+            entry = state["levels"][level]
+            if entry is None:
+                raise ChainError("checkpoint level has no reservation to reconcile")
+            if entry["status"] == "reserved":
+                entry = dict(entry)
+                entry.update({"status": "uncertain", "failure_code": failure_code})
+                state["levels"][level] = entry
+                state["status"] = "uncertain"
+                state["next_action"] = "reconcile:no-replay"
+                state["updated_at"] = _now()
+                _atomic_write(path, state)
+            elif entry["status"] not in ("uncertain", "failed", "completed"):
+                raise ChainError("checkpoint level cannot be reconciled")
+            state = _validate_state(state)
+            if state["status"] in ("uncertain", "failed"):
+                return {"action": "blocked", "state": state}
+            return {"action": "resume", "state": state}
+
     def mark_implementation_started(
         self, checkpoint_key: str, *, policy_digest: str
     ) -> dict[str, Any]:
@@ -635,6 +674,12 @@ def _main(argv: list[str] | None = None) -> int:
         terminal.add_argument("--level", choices=LEVELS, required=True)
         terminal.add_argument("--failure-code", choices=sorted(FAILURE_CODES), required=True)
 
+    reconcile = sub.add_parser("reconcile")
+    reconcile.add_argument("--checkpoint-key", required=True)
+    reconcile.add_argument("--policy-digest", required=True)
+    reconcile.add_argument("--level", choices=LEVELS, required=True)
+    reconcile.add_argument("--failure-code", choices=sorted(FAILURE_CODES), default="unknown")
+
     started = sub.add_parser("implementation-started")
     started.add_argument("--checkpoint-key", required=True)
     started.add_argument("--policy-digest", required=True)
@@ -674,6 +719,13 @@ def _main(argv: list[str] | None = None) -> int:
                 level=args.level,
                 failure_code=args.failure_code,
             )}
+        elif args.command == "reconcile":
+            result = store.reconcile(
+                args.checkpoint_key,
+                policy_digest=args.policy_digest,
+                level=args.level,
+                failure_code=args.failure_code,
+            )
         elif args.command == "implementation-started":
             result = {"status": "ok", "state": store.mark_implementation_started(
                 args.checkpoint_key, policy_digest=args.policy_digest

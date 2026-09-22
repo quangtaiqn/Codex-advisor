@@ -90,7 +90,14 @@ edit those values to make a check pass. The captured receipt redacts thread iden
 and stores only `agent_role`, `transport`, `model`, `effort`,
 `sandbox_policy_type`, and `permission_profile_type`.
 
-## Candidate-current acceptance record (2026-09-03)
+## Historical 1.3.4 acceptance record (frozen; not current 1.4.5)
+
+The following record is retained as historical evidence for the 1.3.4 candidate.
+It does not describe the current 1.4.5 active routing contract: current routing is
+Astra low-first with adjacent escalation, typed response escalation, and no
+same-level corrective retry. Do not use the legacy model or schema details below as
+current clean-host acceptance criteria; use the current package verifier and
+`docs/public-listing.md` instead.
 
 ### Candidate and published versions
 

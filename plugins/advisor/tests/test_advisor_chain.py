@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +56,32 @@ class AdvisorChainTests(unittest.TestCase):
         persisted = state_file.read_text(encoding="utf-8")
         self.assertNotIn("task/checkpoint-1", persisted)
         self.assertEqual(json.loads(persisted)["levels"]["low"]["effort"], "low")
+
+    def test_resume_reconciles_reserved_level_without_replay(self) -> None:
+        self.reserve()
+        command = [
+            sys.executable,
+            str(ROOT / "scripts" / "advisor_chain.py"),
+            "--root",
+            str(self.root),
+            "reconcile",
+            "--checkpoint-key",
+            "task/checkpoint-1",
+            "--policy-digest",
+            POLICY,
+            "--level",
+            "low",
+            "--failure-code",
+            "unknown",
+        ]
+        completed = subprocess.run(command, check=False, text=True, capture_output=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["action"], "blocked")
+        self.assertEqual(result["state"]["status"], "uncertain")
+        self.assertEqual(result["state"]["next_action"], "reconcile:no-replay")
+        with self.assertRaises(chain.ChainError):
+            self.reserve()
 
     def test_packet_change_cannot_reset_reserved_level(self) -> None:
         self.reserve()

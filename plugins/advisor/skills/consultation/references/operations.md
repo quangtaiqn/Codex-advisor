@@ -21,9 +21,11 @@ The active transport accepts `--level` plus an opaque `--checkpoint-key`. Legacy
 `--tier`/`--role` names, if retained, are migration aliases into the same
 Astra-low-first chain and never select old models. Chain state reserves the level
 before launch, persists packet/policy digests atomically under private Codex-home
-state, resumes a reservation after restart, and marks unknown post-reservation
-outcomes uncertain instead of retrying. Usage journal clear/prune never deletes
-the safety ledger.
+state, and resumes from the recorded next action after restart. If restart finds
+a reserved level without terminal evidence, the reconciliation command marks it
+uncertain and blocks; it never replays that level. Only a completed level with
+verified adjacent escalation can continue the chain. Usage journal clear/prune
+never deletes the safety ledger.
 
 Advisor provides pre-decision advice only. It does not implement, route
 implementation, perform final review, or replace root authority. The root performs
