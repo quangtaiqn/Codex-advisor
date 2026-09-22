@@ -31,6 +31,15 @@ from typing import Any
 _SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
+from advisor_policy import (
+    LEVELS,
+    MODEL,
+    PolicyError,
+    PolicyUnavailable,
+    parse_active_config,
+    legacy_tier_level,
+    resolve_selection as resolve_policy_selection,
+)
 from advisor_process import JsonRpcProcess, ProcessUnavailable, terminate_owned
 
 SCHEMA_VERSION = 1
@@ -64,7 +73,7 @@ EFFORTS = frozenset(
     ("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
 )
 TIERS = frozenset(("standard", "specialist"))
-JOURNAL_TIERS = frozenset((*TIERS, "compatibility-test", "opt-in"))
+JOURNAL_TIERS = frozenset((*TIERS, "advisor", "compatibility-test", "opt-in"))
 SELECTOR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 PRESET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
@@ -229,7 +238,7 @@ def live_config_path() -> Path:
 
 
 def load_live_config() -> dict[str, Any]:
-    """Read the exact two-role TOML configuration without consulting local state."""
+    """Read the single active Astra policy without consulting local state."""
     path = live_config_path()
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK
     if hasattr(os, "O_NOFOLLOW"):
@@ -260,16 +269,17 @@ def load_live_config() -> dict[str, Any]:
         raise ConfigError("advisor.toml is malformed") from exc
     finally:
         os.close(descriptor)
-    if not isinstance(value, dict) or set(value) != TIERS:
-        raise ConfigError("advisor.toml must contain only standard and specialist tables")
     try:
-        pairs = {tier: validate_pair(value[tier]) for tier in sorted(TIERS)}
-    except ConfigError as exc:
-        raise ConfigError("advisor.toml has invalid role settings") from exc
+        policy = parse_active_config(value)
+    except PolicyError as exc:
+        raise ConfigError(str(exc)) from exc
     return {
         "path": str(path),
         "source_revision": "sha256:" + hashlib.sha256(raw).hexdigest(),
-        "pairs": pairs,
+        "model": policy["model"],
+        "levels": policy["levels"],
+        "effort_ladder": policy["effort_ladder"],
+        "pairs": policy["pairs"],
     }
 
 
@@ -1473,52 +1483,53 @@ def refresh_catalog(
 
 
 def resolve_selection(
-    tier: str,
+    level: str | None = None,
     *,
+    tier: str | None = None,
     preset: str | None = None,
+    chain_authorized: bool = False,
     paths: StatePaths | None = None,
 ) -> dict[str, Any]:
-    if tier not in TIERS:
-        raise ConfigError("unsupported tier")
-    # Normal --tier consultations are defined by the installed live TOML and never
-    # read saved selections, catalog evidence, or canary receipts. Presets remain
-    # an explicit legacy/advanced route for callers that still ask for one.
-    if not preset:
-        live = load_live_config()
-        deadline_seconds = DEFAULT_DEADLINE_SECONDS
+    """Resolve the active Astra policy; legacy names cannot choose old models."""
+    legacy_alias = None
+    if tier is not None:
+        if level is not None:
+            raise ConfigError("level and legacy tier are mutually exclusive")
         try:
-            deadline_seconds = load_settings(paths)["deadline_seconds"]
-        except ConfigError:
-            pass
-        pair = live["pairs"][tier]
-        return {
-            "tier": tier,
-            "model": pair["model"],
-            "effort": pair["effort"],
-            "selection_source": "live-config",
-            "selection_revision": live["source_revision"],
-            "source_revision": live["source_revision"],
-            "config_path": live["path"],
-            "transport_contract_version": TRANSPORT_CONTRACT_VERSION,
-            "deadline_seconds": deadline_seconds,
-        }
-    settings, catalog = load_settings(paths), load_catalog(paths)
-    source = "legacy-preset"
-    if not PRESET_RE.fullmatch(preset) or preset not in settings["presets"]:
-        raise ConfigError("unknown preset")
-    pair = settings["presets"][preset]
-    compatible = _pair_is_compatible(pair, catalog)
-    if not compatible:
-        raise ConfigError("selected model and effort are not currently compatible")
+            level = legacy_tier_level(tier)
+        except PolicyError as exc:
+            raise ConfigError(str(exc)) from exc
+        legacy_alias = f"tier:{tier}"
+    elif level in TIERS:
+        legacy_tier_level(level)
+        legacy_alias = f"tier:{level}"
+        level = "low"
+    if preset is not None:
+        raise ConfigError("legacy presets cannot select the active Astra policy")
+    try:
+        selected = resolve_policy_selection(
+            level or "low", chain_authorized=chain_authorized
+        )
+    except (PolicyError, PolicyUnavailable) as exc:
+        raise ConfigError(str(exc)) from exc
+    live = load_live_config()
+    deadline_seconds = DEFAULT_DEADLINE_SECONDS
+    try:
+        deadline_seconds = load_settings(paths)["deadline_seconds"]
+    except ConfigError:
+        pass
+    pair = live["pairs"][selected["level"]]
     return {
-        "tier": tier,
+        "level": selected["level"],
         "model": pair["model"],
         "effort": pair["effort"],
-        "selection_source": source,
-        "selection_revision": settings["revision"],
-        "source_revision": f"legacy-settings:{settings['revision']}",
+        "selection_source": "legacy-tier-alias" if legacy_alias else "live-policy",
+        "legacy_alias": legacy_alias,
+        "selection_revision": live["source_revision"],
+        "source_revision": live["source_revision"],
+        "config_path": live["path"],
         "transport_contract_version": TRANSPORT_CONTRACT_VERSION,
-        "deadline_seconds": settings["deadline_seconds"],
+        "deadline_seconds": deadline_seconds,
     }
 
 
@@ -2081,9 +2092,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     test.add_argument("--authorize-usage", action="store_true")
     test.add_argument("--parent-thread", required=True)
     test.add_argument("--sessions-dir")
-    resolve = sub.add_parser("resolve", help="resolve one immutable launch selection")
-    resolve.add_argument("--tier", required=True)
+    resolve = sub.add_parser("resolve", help="resolve one immutable Astra launch selection")
+    resolve_group = resolve.add_mutually_exclusive_group(required=True)
+    resolve_group.add_argument("--level", choices=tuple(LEVELS))
+    resolve_group.add_argument("--tier")
     resolve.add_argument("--preset")
+    resolve.add_argument("--chain-authorized", action="store_true")
     consume = sub.add_parser("_consume-canary", help=argparse.SUPPRESS)
     consume.add_argument("token")
     select = sub.add_parser("set", help="legacy-only saved selection; --tier uses advisor.toml")
@@ -2211,9 +2225,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "status": "ok",
                     "launch": resolve_selection(
-                        args.tier, preset=args.preset, paths=paths
+                        args.level,
+                        tier=args.tier,
+                        preset=args.preset,
+                        chain_authorized=args.chain_authorized,
+                        paths=paths,
                     ),
-                    "message": "Immutable Advisor launch record",
+                    "message": "Immutable Astra policy launch record",
                 },
                 enabled=True,
             )

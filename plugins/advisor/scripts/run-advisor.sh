@@ -11,12 +11,15 @@ fail() {
 
 progress() { printf '%s\n' "ADVISOR TRANSPORT: $*" >&2; }
 
-role='' tier='' preset='' canary_token='' parent_thread_id='' sessions_dir=''
+role='' tier='' level='' preset='' checkpoint_key='' canary_token='' parent_thread_id='' sessions_dir='' chain_authorized=false
 selection_source='' selection_revision=null source_revision=null
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --role) [ "$#" -ge 2 ] || fail "--role requires ROLE"; role=$2; shift 2 ;;
     --tier) [ "$#" -ge 2 ] || fail "--tier requires TIER"; tier=$2; shift 2 ;;
+    --level) [ "$#" -ge 2 ] || fail "--level requires LEVEL"; level=$2; shift 2 ;;
+    --checkpoint-key) [ "$#" -ge 2 ] || fail "--checkpoint-key requires KEY"; checkpoint_key=$2; shift 2 ;;
+    --chain-authorized) chain_authorized=true; shift ;;
     --preset) [ "$#" -ge 2 ] || fail "--preset requires NAME"; preset=$2; shift 2 ;;
     --compatibility-canary) [ "$#" -ge 2 ] || fail "--compatibility-canary requires TOKEN"; canary_token=$2; shift 2 ;;
     --parent-thread) [ "$#" -ge 2 ] || fail "--parent-thread requires THREAD_ID"; parent_thread_id=$2; shift 2 ;;
@@ -25,10 +28,11 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-[ -z "$role" ] || [ -z "$tier" ] || fail "--role and --tier are mutually exclusive"
-[ -z "$canary_token" ] || { [ -z "$role" ] && [ -z "$tier" ] && [ -z "$preset" ]; } || fail "compatibility canary cannot be mixed with role, tier, or preset"
+[ -z "$role" ] || { [ -z "$tier" ] && [ -z "$level" ]; } || fail "--role cannot be combined with --tier or --level"
+[ -z "$tier" ] || [ -z "$level" ] || fail "--tier and --level are mutually exclusive"
+[ -z "$canary_token" ] || { [ -z "$role" ] && [ -z "$tier" ] && [ -z "$level" ] && [ -z "$preset" ] && [ -z "$checkpoint_key" ]; } || fail "compatibility canary cannot be mixed with active routing"
 [ -z "$preset" ] || [ -n "$tier" ] || fail "--preset requires --tier"
-[ -n "$role" ] || [ -n "$tier" ] || [ -n "$canary_token" ] || fail "--role or --tier is required"
+[ -n "$role" ] || [ -n "$tier" ] || [ -n "$level" ] || [ -n "$canary_token" ] || fail "--role, --tier, --level, or canary is required"
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd) || fail "script directory unavailable"
 command -v python3 >/dev/null 2>&1 || fail "python3 is unavailable"
 command -v codex >/dev/null 2>&1 || fail "codex CLI is unavailable"
@@ -48,21 +52,24 @@ if [ -n "$canary_token" ]; then
   role=advisor-compatibility-test
 elif [ -n "$role" ]; then
   case "$role" in
-    advisor-terra) tier=standard; model=gpt-5.6-terra; effort=high; deadline_seconds=300 ;;
-    advisor-sol) tier=specialist; model=gpt-5.6-sol; effort=high; deadline_seconds=300 ;;
-    advisor-astra) tier=opt-in; model=gpt-6-astra; effort=high; deadline_seconds=300 ;;
+    advisor-terra|advisor-sol|advisor-astra) tier=advisor; level=low; model=gpt-6-astra; effort=low; deadline_seconds=300 ;;
     *) fail "unsupported role" ;;
   esac
-  case "$role" in
-    advisor-astra) selection_source=explicit-fixed ;;
-    *) selection_source=legacy-fixed ;;
-  esac
+  selection_source=legacy-alias
+  role=advisor-astra
 else
   resolution_label='live Advisor configuration'
-  fallback_error='advisor.toml is unavailable'
-  if [ -n "$preset" ]; then resolution_label='legacy preset configuration'; fallback_error='legacy preset configuration is unavailable'; fi
-  set -- --json resolve --tier "$tier"
-  [ -z "$preset" ] || set -- "$@" --preset "$preset"
+  fallback_error='active Astra policy is unavailable'
+  if [ -n "$preset" ]; then fail 'legacy presets cannot select the active Astra policy'; fi
+  if [ -n "$tier" ]; then
+    level=low
+    set -- --json resolve --tier "$tier"
+  else
+    tier=advisor
+    level=${level:-low}
+    set -- --json resolve --level "$level"
+  fi
+  [ "$chain_authorized" = true ] && set -- "$@" --chain-authorized
   if ! resolution=$(python3 "$script_dir/advisor_config.py" "$@"); then
     config_error=$(printf '%s' "$resolution" | jq -r '.error // empty' 2>/dev/null || :)
     [ -n "$config_error" ] || config_error=$fallback_error
@@ -74,7 +81,9 @@ else
   selection_source=$(printf '%s' "$resolution" | jq -r '.launch.selection_source') || fail "invalid $resolution_label"
   selection_revision=$(printf '%s' "$resolution" | jq -c '.launch.selection_revision') || fail "invalid $resolution_label"
   source_revision=$(printf '%s' "$resolution" | jq -c '.launch.source_revision') || fail "invalid $resolution_label"
-  role=advisor-tier-$tier
+  level=$(printf '%s' "$resolution" | jq -r '.launch.level') || fail "invalid $resolution_label"
+  tier=advisor
+  role=advisor-astra
 fi
 
 journal_status=$(python3 "$script_dir/advisor_config.py" --json journal status 2>/dev/null || printf '%s' '{"enabled":false}')
@@ -281,14 +290,17 @@ validate_response() {
           ((.[0] | length) == 1 and (.[0][0] as $key | scalar_keys | index($key)) != null and (.[1] | type) == "string")
           or
           ((.[0] | length) == 2 and .[0][0] == "acceptance_checks" and (.[0][1] | type) == "number" and .[0][1] >= 0 and (.[0][1] | floor) == .[0][1] and (.[1] | type) == "string")
+          or
+          ((.[0] | length) == 1 and .[0][0] == "escalation" and (.[1] | type) == "object")
         )
       and ([scalar_keys[] as $key | ([$events[] | select(.[0] == [$key])] | length) == 1] | all)
+      and ([$events[] | select(.[0] == ["escalation"])] | length) == 1
       and ($indices | length) > 0
       and $indices == [range(0; $indices | length)])
   ' "$stream" >/dev/null 2>&1; then
     structure_diagnostic=$(jq -sr '
       def scalar_keys: ["recommendation", "why", "strongest_objection", "change_my_mind", "risks", "follow_up_areas"];
-      def all_keys: scalar_keys + ["acceptance_checks"];
+      def all_keys: scalar_keys + ["acceptance_checks", "escalation"];
       . as $events
       | (if any($events[]; (.[0] | length) == 0 or (.[0][0] | type) != "string")
          then "wrong-type/response" else empty end) //
@@ -308,6 +320,9 @@ validate_response() {
           | ([$events[] | select(.[0][0] == $key)]) as $matches
           | select(($matches | length) != 1 or $matches[0][0] != [$key] or ($matches[0][1] | type) != "string")
           | "wrong-type/" + $key][0]) //
+        (if ([$events[] | select(.[0] == ["escalation"])] | length) != 1 or
+            ([$events[] | select(.[0] == ["escalation"])][0][1] | type) != "object"
+         then "wrong-type/escalation" else empty end) //
         (([$events[] | select(.[0][0] == "acceptance_checks")]) as $checks
          | ([$checks[] | select((.[0] | length) == 2 and (.[0][1] | type) == "number" and .[0][1] >= 0 and (.[0][1] | floor) == .[0][1] and (.[1] | type) == "string") | .[0][1]]) as $indices
          | if (($checks | length) == 0 or ($checks | length) != ($indices | length) or $indices != [range(0; $indices | length)]) then "invalid-acceptance-checks/acceptance_checks" else empty end) //
@@ -316,7 +331,7 @@ validate_response() {
     validation_class=${structure_diagnostic%%/*}
     validation_field=${structure_diagnostic#*/}
     case "$validation_class" in duplicate-or-overwritten-field|missing-field|extra-field|wrong-type|invalid-acceptance-checks) ;; *) validation_class=wrong-type; validation_field=response ;; esac
-    case "$validation_field" in recommendation|why|strongest_objection|change_my_mind|acceptance_checks|risks|follow_up_areas|response) ;; *) validation_field=response ;; esac
+    case "$validation_field" in recommendation|why|strongest_objection|change_my_mind|acceptance_checks|risks|follow_up_areas|escalation|response) ;; *) validation_field=response ;; esac
     return 1
   fi
 
@@ -344,10 +359,17 @@ validate_response() {
       change_my_mind: (.change_my_mind | clean),
       acceptance_checks: [.acceptance_checks[] | clean],
       risks: (.risks | clean),
-      follow_up_areas: (.follow_up_areas | clean)
+      follow_up_areas: (.follow_up_areas | clean),
+      escalation: .escalation
     }
   ' "$candidate" >"$normalized" 2>/dev/null; then
     validation_failure wrong-type response || return 1
+  fi
+
+  if [ "$tier" != compatibility-test ]; then
+    if ! python3 "$script_dir/advisor_policy.py" validate-response --level "$level" --response "$(cat "$normalized")" >/dev/null 2>&1; then
+      validation_failure invalid-escalation escalation || return 1
+    fi
   fi
 
   if ! jq -r '
@@ -477,8 +499,8 @@ if [ "$journal_enabled" = true ]; then
     printf '%s\n' 'ADVISOR TRANSPORT: warning (usage journal write unavailable)' >&2
   fi
 fi
-jq -cn --argjson evidence "$(cat "$evidence")" --rawfile response "$rendered" \
-  --arg tier "$tier" --arg model "$model" --arg effort "$effort" \
+jq -cn --argjson evidence "$(cat "$evidence")" --argjson escalation "$(jq -c '.escalation' "$normalized")" --rawfile response "$rendered" \
+  --arg tier "$tier" --arg level "$level" --arg model "$model" --arg effort "$effort" \
   --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --argjson attempts "$attempt_records" --argjson totals "$totals" --arg id "$consultation_id" \
   --argjson availability "$availability" --argjson duration "$total_duration_ms" \
-  '{schema_version:3,status:"completed",outcome:"accepted",consultation_id:$id,selection:{tier:$tier,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:$evidence,response:$response}'
+  '{schema_version:3,status:"completed",outcome:"accepted",consultation_id:$id,selection:{tier:$tier,level:$level,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},escalation:$escalation,attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:$evidence,response:$response}'

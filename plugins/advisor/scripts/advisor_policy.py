@@ -16,6 +16,8 @@ MODEL = "gpt-6-astra"
 LEVELS = ("low", "medium", "high", "extra_high")
 RUNTIME_EFFORTS = {"low": "low", "medium": "medium", "high": "high", "extra_high": "xhigh"}
 NEXT_LEVEL = {level: LEVELS[index + 1] if index + 1 < len(LEVELS) else None for index, level in enumerate(LEVELS)}
+ACTIVE_CONFIG_KEYS = {"model", "effort_ladder"}
+LEGACY_TIERS = frozenset(("standard", "specialist"))
 
 
 class PolicyError(ValueError):
@@ -24,6 +26,38 @@ class PolicyError(ValueError):
 
 class PolicyUnavailable(PolicyError):
     """The requested policy level is not advertised by the local runtime."""
+
+
+def legacy_tier_level(tier: str) -> str:
+    """Map one historical tier name to the only compatible active level."""
+
+    if tier not in LEGACY_TIERS:
+        raise PolicyError("unsupported legacy tier alias")
+    return "low"
+
+
+def parse_active_config(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the single active `[advisor]` TOML policy.
+
+    Historical catalog/tier state may still exist for diagnostics and explicit
+    compatibility canaries, but it cannot be an active model selector.
+    """
+
+    if not isinstance(value, Mapping) or set(value) != {"advisor"}:
+        raise PolicyError("active config must contain only the advisor table")
+    table = value["advisor"]
+    if not isinstance(table, Mapping) or set(table) != ACTIVE_CONFIG_KEYS:
+        raise PolicyError("advisor config must contain only model and effort_ladder")
+    if table["model"] != MODEL:
+        raise PolicyError("active advisor model is fixed to gpt-6-astra")
+    ladder = table["effort_ladder"]
+    if ladder != ["low", "medium", "high", "xhigh"]:
+        raise PolicyError("active advisor effort ladder is invalid")
+    pairs = {
+        level: {"model": MODEL, "effort": RUNTIME_EFFORTS[level]}
+        for level in LEVELS
+    }
+    return {"model": MODEL, "levels": list(LEVELS), "effort_ladder": list(ladder), "pairs": pairs}
 
 
 def _nonblank(value: Any) -> bool:

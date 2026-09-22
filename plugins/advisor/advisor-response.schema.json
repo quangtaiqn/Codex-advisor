@@ -9,7 +9,8 @@
     "change_my_mind",
     "acceptance_checks",
     "risks",
-    "follow_up_areas"
+    "follow_up_areas",
+    "escalation"
   ],
   "properties": {
     "recommendation": { "type": "string" },
@@ -22,6 +23,17 @@
       "items": { "type": "string" }
     },
     "risks": { "type": "string" },
-    "follow_up_areas": { "type": "string" }
+    "follow_up_areas": { "type": "string" },
+    "escalation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["next_level", "reason", "unresolved_difficulty", "required_resolution"],
+      "properties": {
+        "next_level": { "enum": [null, "medium", "high", "extra_high"] },
+        "reason": { "type": "string" },
+        "unresolved_difficulty": { "type": "string" },
+        "required_resolution": { "type": "string" }
+      }
+    }
   }
 }

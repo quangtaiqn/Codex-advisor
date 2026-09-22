@@ -90,6 +90,42 @@ class AdvisorPolicyTests(unittest.TestCase):
             },
         )
 
+    def test_active_config_has_one_fixed_astra_ladder(self) -> None:
+        parsed = policy.parse_active_config(
+            {
+                "advisor": {
+                    "model": "gpt-6-astra",
+                    "effort_ladder": ["low", "medium", "high", "xhigh"],
+                }
+            }
+        )
+        self.assertEqual(parsed["model"], "gpt-6-astra")
+        self.assertEqual(
+            parsed["pairs"]["extra_high"],
+            {"model": "gpt-6-astra", "effort": "xhigh"},
+        )
+
+    def test_old_active_config_or_model_override_is_rejected(self) -> None:
+        with self.assertRaises(policy.PolicyError):
+            policy.parse_active_config(
+                {"standard": {"model": "gpt-5.6-terra", "effort": "high"}}
+            )
+        with self.assertRaises(policy.PolicyError):
+            policy.parse_active_config(
+                {
+                    "advisor": {
+                        "model": "gpt-5.6-terra",
+                        "effort_ladder": ["low", "medium", "high", "xhigh"],
+                    }
+                }
+            )
+
+    def test_legacy_tier_aliases_are_explicit_and_bounded(self) -> None:
+        self.assertEqual(policy.legacy_tier_level("standard"), "low")
+        self.assertEqual(policy.legacy_tier_level("specialist"), "low")
+        with self.assertRaises(policy.PolicyError):
+            policy.legacy_tier_level("bogus")
+
     def test_higher_level_requires_verified_chain(self) -> None:
         with self.assertRaises(policy.PolicyError):
             policy.resolve_selection("medium")
