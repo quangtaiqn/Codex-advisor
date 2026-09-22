@@ -1,0 +1,18 @@
+{
+  "checkpoint": "CP1",
+  "status": "COMPLETE",
+  "plan": "Advisor_New_Plan.md",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "code_commit": "5a94f7b8febb2aecbd889b3775ba72b829edebaf",
+  "parent_receipt_sha256": "sha256:f68de8d789201135cb1cf86b0444c7839c5ca2a5c31fe04ab693a6a6acaa726d",
+  "checks": [
+    {"command": "python -m unittest tests.test_advisor_policy", "status": "PASS", "result": "7 tests, 0 failures"},
+    {"command": "python -m py_compile plugins/advisor/scripts/advisor_policy.py", "status": "PASS"},
+    {"command": "git diff --cached --check", "status": "PASS"}
+  ],
+  "changed_files_digest": "sha256:bdc6f9f8e9889f4ca0112af5b41a2319195f42812394d341a7e9d4dc638c0583",
+  "advisor_opportunity": "not_used",
+  "implementation_started": false,
+  "next_action": "Write CP2 RED tests for fixed Astra selection, typed escalation, and legacy-route rejection"
+}

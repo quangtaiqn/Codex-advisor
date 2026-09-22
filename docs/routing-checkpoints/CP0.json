@@ -1,0 +1,29 @@
+{
+  "checkpoint": "CP0",
+  "status": "COMPLETE",
+  "plan": "Advisor_New_Plan.md",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "code_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "parent_receipt_sha256": null,
+  "checks": [
+    {
+      "command": "plugins/advisor/scripts/verify.sh --static",
+      "status": "UNAVAILABLE",
+      "reason": "Windows host has no bash executable and WSL is not installed; no system tooling was installed."
+    },
+    {
+      "command": "python -m unittest discover -s plugins/advisor/tests -p test_*.py",
+      "status": "UNAVAILABLE",
+      "reason": "Existing POSIX suite requires fcntl and shell wrappers; Windows run produced ModuleNotFoundError/fault 193 before behavior assertions."
+    },
+    {
+      "command": "git status --short --branch",
+      "status": "PASS",
+      "evidence": "Feature branch created; only user-owned plan files were untracked."
+    }
+  ],
+  "changed_files_digest": "baseline-only",
+  "advisor_opportunity": "not_used",
+  "next_action": "Execute CP1 activation policy and regression tests"
+}
