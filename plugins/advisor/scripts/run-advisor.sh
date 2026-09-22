@@ -13,6 +13,7 @@ progress() { printf '%s\n' "ADVISOR TRANSPORT: $*" >&2; }
 
 role='' tier='' level='' preset='' checkpoint_key='' canary_token='' parent_thread_id='' sessions_dir='' chain_authorized=false
 selection_source='' selection_revision=null source_revision=null
+source_revision_raw=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --role) [ "$#" -ge 2 ] || fail "--role requires ROLE"; role=$2; shift 2 ;;
@@ -37,9 +38,10 @@ script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd) || fail "script directory unav
 command -v python3 >/dev/null 2>&1 || fail "python3 is unavailable"
 command -v codex >/dev/null 2>&1 || fail "codex CLI is unavailable"
 command -v jq >/dev/null 2>&1 || fail "jq is unavailable"
-for helper in advisor_config.py advisor_process.py inspect-agent-runtime.sh; do
+for helper in advisor_config.py advisor_process.py advisor_chain.py inspect-agent-runtime.sh; do
   [ -f "$script_dir/$helper" ] && [ ! -L "$script_dir/$helper" ] || fail "installed Advisor helper is unsafe"
 done
+chain_script=$script_dir/advisor_chain.py
 if [ -n "$canary_token" ]; then
   resolution=$(python3 "$script_dir/advisor_config.py" --json _consume-canary "$canary_token") || fail "compatibility canary authorization is unavailable"
   model=$(printf '%s' "$resolution" | jq -r '.launch.model') || fail "invalid compatibility canary authorization"
@@ -67,6 +69,7 @@ elif [ -n "$role" ]; then
   deadline_seconds=$(printf '%s' "$resolution" | jq -r '.launch.deadline_seconds') || fail 'invalid active Astra policy'
   selection_revision=$(printf '%s' "$resolution" | jq -c '.launch.selection_revision') || fail 'invalid active Astra policy'
   source_revision=$(printf '%s' "$resolution" | jq -c '.launch.source_revision') || fail 'invalid active Astra policy'
+  source_revision_raw=$(printf '%s' "$resolution" | jq -r '.launch.source_revision') || fail 'invalid active Astra policy'
 else
   resolution_label='live Advisor configuration'
   fallback_error='active Astra policy is unavailable'
@@ -91,6 +94,7 @@ else
   selection_source=$(printf '%s' "$resolution" | jq -r '.launch.selection_source') || fail "invalid $resolution_label"
   selection_revision=$(printf '%s' "$resolution" | jq -c '.launch.selection_revision') || fail "invalid $resolution_label"
   source_revision=$(printf '%s' "$resolution" | jq -c '.launch.source_revision') || fail "invalid $resolution_label"
+  source_revision_raw=$(printf '%s' "$resolution" | jq -r '.launch.source_revision') || fail "invalid $resolution_label"
   level=$(printf '%s' "$resolution" | jq -r '.launch.level') || fail "invalid $resolution_label"
   tier=advisor
   role=advisor-astra
@@ -116,6 +120,13 @@ PY
 ) || fail "consultation timing initialization failed"
 attempt_open=false
 terminal_emitted=false
+chain_enabled=false
+chain_reserved=false
+chain_packet_digest=''
+
+if [ "$tier" != compatibility-test ]; then
+  chain_enabled=true
+fi
 
 usage_totals() {
   jq -cn --argjson attempts "$attempt_records" '
@@ -126,6 +137,20 @@ usage_totals() {
          availability:(if ($all|length)==0 or ($known|length)==0 then "unavailable" elif ($known|length)==($all|length) then "available" else "partial" end)};
     {input:metric("input"),cached_input:metric("cached_input"),output:metric("output"),reasoning:metric("reasoning")}
   '
+}
+
+chain_mark_terminal() {
+  [ "$chain_enabled" = true ] && [ "$chain_reserved" = true ] || return 0
+  chain_status=failed
+  case "$1" in
+    timed_out|cancelled|unknown) chain_status=uncertain ;;
+  esac
+  if ! python3 "$chain_script" "$chain_status" \
+    --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
+    --level "$level" --failure-code "$1" >/dev/null 2>&1; then
+    progress "warning (checkpoint safety state could not be finalized)"
+  fi
+  chain_reserved=false
 }
 
 terminal_failure() {
@@ -139,6 +164,14 @@ terminal_failure() {
     *runtime*|*inspection*) consultation_outcome=failed; attempt_outcome=runtime_failed ;;
     *) consultation_outcome=failed; attempt_outcome=launch_failed ;;
   esac
+  chain_failure_code=launch_failed
+  case "$failure_message" in
+    *deadline*|*timed*out*) chain_failure_code=timed_out ;;
+    *cancel*) chain_failure_code=cancelled ;;
+    *validation*|*rejected_response*) chain_failure_code=rejected_response ;;
+    *runtime*|*inspection*) chain_failure_code=runtime_failed ;;
+  esac
+  chain_mark_terminal "$chain_failure_code"
   if [ "$attempt_open" = true ]; then
     failure_finished_ms=$(python3 - <<'PY'
 import time
@@ -219,6 +252,53 @@ import sys, time
 raise SystemExit(0 if time.monotonic() < float(sys.argv[1]) else 1)
 PY
 }
+
+chain_reserve() {
+  [ "$chain_enabled" = true ] || return 0
+  chain_packet_digest=$1
+  deadline_ok || fail "consultation deadline exceeded"
+  chain_status=0
+  if [ "$chain_authorized" = true ]; then
+    chain_result=$(python3 "$chain_script" reserve \
+      --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
+      --packet-digest "$chain_packet_digest" --level "$level" \
+      --authorize-escalation 2>/dev/null) || chain_status=$?
+  else
+    chain_result=$(python3 "$chain_script" reserve \
+      --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
+      --packet-digest "$chain_packet_digest" --level "$level" 2>/dev/null) || chain_status=$?
+  fi
+  if [ "$chain_status" -ne 0 ] || [ -z "$chain_result" ]; then
+    chain_error=$(printf '%s' "$chain_result" | jq -r '.error // empty' 2>/dev/null || :)
+    [ -n "$chain_error" ] || chain_error='checkpoint reservation is unavailable'
+    fail "$chain_error"
+  fi
+  chain_action=$(printf '%s' "$chain_result" | jq -r '.action // empty') || fail 'invalid checkpoint reservation'
+  case "$chain_action" in
+    launch) chain_reserved=true ;;
+    resume_required) fail 'checkpoint reservation already exists; reconciliation is required before resume' ;;
+    *) fail 'checkpoint reservation returned an unsupported action' ;;
+  esac
+}
+
+chain_complete() {
+  [ "$chain_enabled" = true ] && [ "$chain_reserved" = true ] || return 0
+  result_digest=$1
+  next_level=$2
+  if [ -n "$next_level" ]; then
+    python3 "$chain_script" complete \
+      --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
+      --level "$level" --next-level "$next_level" --result-digest "$result_digest" \
+      >/dev/null 2>&1 || fail 'checkpoint completion state is unavailable'
+  else
+    python3 "$chain_script" complete \
+      --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
+      --level "$level" --result-digest "$result_digest" \
+      >/dev/null 2>&1 || fail 'checkpoint completion state is unavailable'
+  fi
+  chain_reserved=false
+}
+
 if [ -n "$canary_token" ]; then
   cat >"$packet" <<'ADVISOR_CANARY'
 DECISION
@@ -253,6 +333,18 @@ for heading in DECISION CONTEXT OPTIONS BOUNDARIES REQUEST; do
   [ "$line" -gt "$previous" ] || fail "misordered decision packet"
   previous=$line
 done
+
+packet_digest=$(python3 - "$packet" <<'PY'
+import hashlib
+import pathlib
+import sys
+print("sha256:" + hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+) || fail "decision packet digest failed"
+if [ -z "$checkpoint_key" ]; then
+  checkpoint_key="thread:$parent_thread_id:level:$level"
+fi
+chain_reserve "$packet_digest"
 
 {
   printf '%s\n' "You are $role, a consultation-only technical advisor."
@@ -462,6 +554,15 @@ deadline_ok || fail "consultation deadline exceeded"
 
 validation_class='' validation_field=''
 if validate_response "$response" "$stream" "$parser_status_file" "$normalized" "$rendered"; then
+  result_digest=$(python3 - "$normalized" <<'PY'
+import hashlib
+import pathlib
+import sys
+print("sha256:" + hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+) || fail "advisor result digest failed"
+  next_level=$(jq -r '.escalation.next_level // empty' "$normalized") || fail "advisor escalation is unavailable"
+  chain_complete "$result_digest" "$next_level"
   attempt_records=$(jq -cn --argjson prior "$attempt_records" --argjson usage "$attempt_usage" --argjson number "$attempt" '$prior + [{number:$number,outcome:"accepted",duration_ms:$usage.duration_ms,usage:$usage.usage,availability:$usage.availability}]') || fail "usage record construction failed"
   attempt_open=false
   response_verified=true

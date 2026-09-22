@@ -356,6 +356,13 @@ class AdvisorTransportTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.rows(), [])
 
+    def test_checkpoint_reservation_prevents_replay_after_a_completed_pass(self) -> None:
+        first = self.run_transport("--tier", "standard", "--checkpoint-key", "stable-checkpoint")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.run_transport("--tier", "standard", "--checkpoint-key", "stable-checkpoint")
+        self.assertNotEqual(second.returncode, 0)
+        self.assertEqual(len(self.rows()), 1)
+
     def test_cli_version_change_does_not_replace_live_tier_before_launch(self) -> None:
         self.qualify("future/model")
         settings = config.load_settings(self.paths)
