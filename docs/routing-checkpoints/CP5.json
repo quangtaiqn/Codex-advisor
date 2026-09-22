@@ -1,0 +1,87 @@
+{
+  "checkpoint": "CP5",
+  "status": "COMPLETE",
+  "plan": "Advisor_New_Plan.md",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "code_commit": "3f580d03414727a5a30459c4fbf8545503cb75ee",
+  "parent_receipt_sha256": "sha256:023373b0a12ea0b3ffd07c709cc265e13a7a23b364a6b89582c577b2b44c041a",
+  "checks": [
+    {
+      "command": "python -m unittest plugins.advisor.tests.test_advisor_policy plugins.advisor.tests.test_advisor_chain",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "15 tests, 0 failures"
+    },
+    {
+      "command": "python -m unittest public-release.test_upload_readiness",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "13 tests, 0 failures; CRLF listing headings covered"
+    },
+    {
+      "command": "python -m py_compile [CP5 modified Python modules and tests]",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "command": "CP5 semantic contract canary",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "schema escalation, fixed gpt-6-astra policy, low-first roles, four-level ladder, and token-saving text"
+    },
+    {
+      "command": "Git for Windows sh.exe -n [CP5 shell scripts]",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "code commit diff has no whitespace errors"
+    },
+    {
+      "command": "python -m unittest plugins.advisor.tests.test_advisor_cli",
+      "status": "UNAVAILABLE",
+      "exit_code": 1,
+      "reason": "Windows host cannot execute the test's POSIX python3/sh process path (WinError 193); no compatibility shim was installed."
+    },
+    {
+      "command": "python -m unittest plugins.advisor.tests.test_advisor_config plugins.advisor.tests.test_advisor_transport plugins.advisor.tests.test_advisor_usage",
+      "status": "UNAVAILABLE",
+      "exit_code": 1,
+      "reason": "Windows Python lacks the POSIX fcntl module imported by the existing config test/runtime path; no dependency or shim was installed."
+    },
+    {
+      "command": "sh plugins/advisor/scripts/verify.sh --static",
+      "status": "UNAVAILABLE",
+      "exit_code": 127,
+      "reason": "Git Bash PATH has neither jq nor python3; WSL/Linux was not installed."
+    },
+    {
+      "command": "python -m unittest public-release.test_candidate_package",
+      "status": "UNAVAILABLE",
+      "exit_code": 1,
+      "reason": "Package subprocess tests require POSIX python3/sh on this Windows host; the isolated upload-readiness suite passed separately."
+    },
+    {
+      "command": "npm test -- --reporter=line (web-tests)",
+      "status": "UNAVAILABLE",
+      "exit_code": 1,
+      "reason": "web-tests/node_modules is absent and Playwright was not installed in this session."
+    }
+  ],
+  "changed_files_count": 36,
+  "changed_files_digest": "sha256:606a23efcbfaf9f0a0f7a2e0fe35c30b334cf5b6eb3aea3eea91ace6363da63f",
+  "changed_files_digest_basis": "LF-delimited sorted path<TAB>blob-sha entries at code_commit",
+  "advisor_opportunity": {
+    "model": "gpt-6-astra",
+    "reasoning_effort": "low",
+    "status": "accepted",
+    "escalation": "NONE",
+    "scope": "active Astra routing migration, token-saving one-pass policy, and legacy diagnostic/alias boundaries"
+  },
+  "implementation_started": true,
+  "next_action": "Proceed to CP6 bounded live verification and one independent final review; do not push or publish."
+}
