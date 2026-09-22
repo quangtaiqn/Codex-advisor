@@ -1,5 +1,30 @@
 # Consultation operations
 
+## Active routing contract
+
+The packaged plugin preserves its existing local Codex transport, inspectors,
+launcher, private transport directory, cancellation/deadline handling, usage
+journal, installer, and marketplace boundaries. Only active advisor routing is
+changed: approved-plan checkpoint preflight starts `gpt-6-astra` at `low`, then
+permits only `medium`, `high`, and `extra_high` (`xhigh`) after an explicit
+adjacent escalation request. No Terra/Sol active selection, raw model/effort
+override, cloud backend, `mcp.json`, database, or API billing path is added.
+
+Consult only when unresolved uncertainty remains after a cheap local check and
+the wrong decision has material impact. Skip routine/factual/status/mechanical
+work, settled decisions, implementation already started, completion/reassurance,
+explicit no-delegation, and borderline cases. One checkpoint has one opportunity;
+each effort is single-pass, there is no same-effort schema retry, no parallel or
+recursive advisor, and no automatic completion consultation.
+
+The active transport accepts `--level` plus an opaque `--checkpoint-key`. Legacy
+`--tier`/`--role` names, if retained, are migration aliases into the same
+Astra-low-first chain and never select old models. Chain state reserves the level
+before launch, persists packet/policy digests atomically under private Codex-home
+state, resumes a reservation after restart, and marks unknown post-reservation
+outcomes uncertain instead of retrying. Usage journal clear/prune never deletes
+the safety ledger.
+
 Advisor provides pre-decision advice only. It does not implement, route
 implementation, perform final review, or replace root authority. The root performs
 any repository or web research before consultation and sends enough relevant evidence
@@ -14,14 +39,11 @@ The root may assign bounded evidence gathering to separate research workers befo
 
 ## Live configuration and advanced tools
 
-The installed `advisor.toml` is the authoritative live configuration for normal
-`--tier standard|specialist` calls. It has only `[standard]` and `[specialist]`, each
-with a model and effort. Edit it in place: the next consultation reads it, freezes its
-pair and SHA-256 source revision through retry, and requires no catalog, discovery,
-canary, or local state. Future syntactically valid selectors are allowed subject to
-account/runtime support; Specialist Astra opts into higher usage. Plugin updates or a
-reinstall can replace edits. `scripts/advisor-config.sh show` and `doctor` display the
-actual installed path, revision, and pairs.
+The installed `advisor.toml` is the authoritative fixed Astra policy for active
+calls. It contains one model and the ordered level/effort ladder. The next
+consultation reads it and freezes its policy plus SHA-256 source revision. No
+catalog, discovery, canary, preset, or legacy saved selection may change active
+routing. Plugin updates or reinstall can replace the bundled policy.
 
 The helper's settings, prior-settings recovery, catalog evidence, canary receipts, and
 optional journal are advanced legacy state under Codex home, outside the plugin cache.
@@ -31,11 +53,12 @@ app-server using the existing Codex provider/auth context. It uses
 JSON-RPC messages, includes hidden models, and preserves existing catalog state on
 offline, protocol, or authorization failure. It never copies credentials, writes user
 Codex configuration, enables tools, or runs inference. New launcher calls use
-`--tier standard|specialist`; raw model/effort overrides are not accepted. Live
-defaults are Terra/high and Sol/high without state creation, discovery, or a canary.
+`--level low|medium|high|extra_high`; raw model/effort overrides are not accepted.
+Live routing starts Astra/low and maps extra_high to xhigh without fallback.
 That permission to attempt is not compatibility proof: each
 real child remains subject to the existing exact runtime identity, effort, read-only,
-zero-tool, and schema checks. Legacy role calls remain pinned.
+zero-tool, and schema checks. Legacy role names are aliases only and never select
+Terra or Sol.
 If the installed CLI does not expose both isolation flags for `app-server`, refresh
 returns unavailable without launching it or changing the catalog. Tested CLI
 provenance `0.153.2` is currently in that safe-unavailable state; discovery never
@@ -44,8 +67,8 @@ catalog presence, including optional Astra, is neither entitlement nor compatibi
 `models test MODEL
 --effort EFFORT --authorize-usage` is the only inference-based configuration command.
 It runs a fixed content-free packet through this same transport, permits at most one
-response-only retry, records the exact local CLI version as provenance on success, and
-never changes a tier selection. CLI updates alone do not stale evidence. It requires
+response-only canary, records the exact local CLI version as provenance on success, and
+never changes the active Astra policy. CLI updates alone do not stale evidence. It requires
 explicit usage authorization; configuration metadata or a saved selection is not
 consent. `set` and `reset` reject as legacy-only rather than reporting an active tier
 change; `restore` reports that it only restores legacy state.
@@ -107,22 +130,11 @@ An unavailable preflight emits `route: unavailable`, with no `ADVISOR CALL`, no
 consultation process, and no block on root-owned work. The ordinary `skip` route
 remains unchanged.
 
-For a consult, select the tier from decision risk:
-
-- Standard: `--tier standard`, defaulting to Terra / `high`. This covers ordinary
-  bounded material architecture, interface, data-model, and generic advisor requests.
-- Specialist: `--tier specialist`, defaulting to Sol / `high`, only when targeted evidence still leaves unresolved a cross-module or system design, compatibility or concurrency boundary, competing diagnosis, an unresolved security or trust boundary,
-  recovery, an irreversible migration or data-loss decision, or a credible unresolved
-  High-severity disagreement.
-
-Security adjacency or project importance alone, or an ordinary architecture question
-alone, does not qualify for Specialist. A borderline role choice uses Standard. The
-parent model is irrelevant.
-Legacy cached callers may still use `--role advisor-terra` or `--role advisor-sol`;
-those routes remain fixed to Terra/high and Sol/high, do not follow `advisor.toml`,
-and cannot be mixed with a tier or preset.
-An explicit caller may use `--role advisor-astra` for the fixed Astra/high opt-in;
-that route is not a tier default or fallback and cannot be mixed with a tier or preset.
+For a consult, start `--level low` with `gpt-6-astra`. Escalate only when the
+verified response requests the immediate next level, in order `medium`, `high`,
+then `extra_high` (`xhigh`). Legacy `--tier`/`--role` names, if accepted, are
+compatibility aliases into the same low-first chain and cannot select Terra/Sol,
+presets, or arbitrary model/effort values. The parent model is irrelevant.
 
 Never call `codex exec` directly or pass a model/effort override. Invoke the fixed
 installed-plugin wrapper through the shell tool's
@@ -134,11 +146,11 @@ resolves the live model and effort once, forces a read-only sandbox, and creates
 distinct persisted consultation thread:
 
 ```sh
-/bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --tier standard <<'ADVISOR_PACKET'
+/bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --level low --checkpoint-key <opaque-key> <<'ADVISOR_PACKET'
 DECISION
 <the complete five-section packet continues here>
 ADVISOR_PACKET
-# or use: --tier specialist
+# Resume with the same checkpoint key only after a verified adjacent escalation.
 ```
 
 ### Deferred shell-tool result handoff
@@ -206,7 +218,11 @@ object conforming to the installed `advisor-response.schema.json`, with no prose
 code fences. This schema is the sole supported wrapper model-output format. Direct/native role invocation is unsupported and is not schema-validated. It requires
 six nonblank string fields (`recommendation`, `why`, `strongest_objection`,
 `change_my_mind`, `risks`, `follow_up_areas`) and a nonempty array of nonblank string
-`acceptance_checks` values.
+`acceptance_checks` values plus a typed `escalation` object. The object contains
+`next_level` (`null`, `medium`, `high`, or `extra_high`) and the strings
+`reason`, `unresolved_difficulty`, and `required_resolution`. A non-null next
+level must be the immediate next level and all three explanation strings must be
+nonblank.
 
 ```text
 ADVISOR RESPONSE
@@ -227,8 +243,8 @@ the exact frozen effort, read-only isolation, and
 zero tool use; it is not a metadata fallback. Wrapper-owned semantic validation
 accepts only schema-valid, nonblank fields and deterministically renders the exact
 canonical eight-line receipt above. A runtime-valid response-validation failure emits
-only a redacted failure `class` and `field`, then receives exactly one fresh corrective
-retry whose prompt names only that diagnostic. A consultation launches at most two children.
+only a redacted failure `class` and `field`, then stops. A consultation launches at
+most one child per effort level; there is no same-effort corrective retry.
 Packet, launcher, event, identity, same-session, runtime, wrong-model,
 wrong-effort, non-read-only, normalization, or tool-use failure is terminal and never
 retries. A second response-validation failure is unavailable. Rejected content is
@@ -244,17 +260,17 @@ record `accept`, `modify`, or `reject`. For a research-first response, the conci
 research-first plan is the recommendation and `accept` means accepting that plan,
 not a technical choice the advisor did not make. The advisor is never authoritative.
 
-After a valid, runtime-inspected completed result, the root may route only its
-research or brainstorming follow-up to an appropriate Luna or Terra subagent outside
-this consultation, synthesize the result, and optionally begin a fresh consultation
-with fresh `ADVISOR CALL` and `ADVISOR RESULT` receipts. An unavailable result cannot be rescued by follow-up work, and the advisor may not spawn or conduct that work.
+After a valid, runtime-inspected result, any research or brainstorming follow-up
+remains primary-agent work outside this consultation. An unavailable result cannot
+be rescued by a replacement advisor or same-checkpoint follow-up, and the advisor
+may not spawn or conduct that work.
 
 Resolve the tier with the installed helper. Immediately before invoking the
 consultation transport, the root emits the actual resolved metadata:
 
 ```text
 ADVISOR CALL
-tier: Standard | Specialist
+level: low | medium | high | extra_high
 model: <resolved model selector>
 effort: <resolved effort>
 reason: <one task-specific sentence>
@@ -267,7 +283,7 @@ After runtime evidence and advice processing, it always emits:
 ```text
 ADVISOR RESULT
 status: completed | unavailable
-tier: Standard | Specialist
+level: low | medium | high | extra_high
 model: <verified resolved model selector>
 effort: <verified resolved effort>
 isolation: read-only
@@ -303,12 +319,12 @@ unavailable, never approval. No substitute advisor role or replacement consultat
 is allowed; any root-routed follow-up remains outside this consultation. Progress is
 stderr-only and successful stdout is one verified JSON object containing the allowlisted
 runtime evidence and the canonical eight-line receipt rendered from the accepted
-schema object. Every launched child is inspected before retry eligibility is decided.
-Exactly one corrective retry is permitted only for a runtime-valid
-response-validation failure and exposes only its redacted failure class and field;
-terminal transport, identity, isolation, provenance, runtime, or tool failures never
-retry. Rejected raw content remains private to the consultation directory and is never
-emitted or copied into a retry prompt.
+schema object. Every launched child is inspected before response classification.
+Response-validation failure is terminal after the runtime inspection and exposes
+only its redacted failure class and field; terminal transport, identity, isolation,
+provenance, runtime, or tool failures never retry. Rejected raw content remains
+private to the consultation directory and is never emitted or copied into another
+prompt.
 
 ## Local advisor audit
 
@@ -337,21 +353,18 @@ exists. Current parent `function_call` spawn requests and role-free
 `SubAgentActivity` lifecycle events (`started`, `interacted`, `completed`, and
 `interrupted`) are separate corroborating counts. A request never establishes a
 selected role or completion, and activity is counted only by correlation to an exact
-current child ID. Standard
-and Specialist selections, evidenced dispositions, stale `sol_advisor`/`sol-advisor`
-attempts, sandbox counts, advisor tool-call counts, duration aggregates, and token
-totals remain aggregate-only. Astra is included in child-session and parent-completion
-role aggregates, but never in the exact `{standard, specialist}` selected-role counts.
+current child ID. Legacy role labels, evidenced dispositions, sandbox counts,
+advisor tool-call counts, duration aggregates, and token totals remain
+aggregate-only. Astra level/model evidence is included in child-session and
+parent-completion aggregates without reintroducing a legacy tier selector.
 It never changes sessions or Codex configuration.
 
 ## Trigger evaluation
 
-Complex work takes one completion consultation before it is declared complete: the
-task already consulted, or it spans multiple phases, files, or sessions. It is an
-ordinary bounded consultation with the same records, transport, isolation, and
-inspection, asking whether the finished work meets its stated contract and what
-evidence would falsify that. It never becomes a final diff review or release
-verification, and routine or already-skipped work takes none.
+There is no automatic completion consultation. Completion, final diff review, and
+release verification remain owned by the primary agent and the separate
+`final-review` workflow; a new advisor chain requires a materially new checkpoint
+and bounded uncertainty.
 
 Static verification is non-networked:
 
@@ -390,4 +403,4 @@ Use `--allow-unavailable` only to accept a typed unavailable artifact as evidenc
 an unavailable evaluation, never as a passing consultation result.
 # Usage and local support data
 
-The consultation envelope records an opaque consultation ID plus per-attempt and aggregate duration/token accounting when the host provides structured counters. This preserves the canonical eight-line response and never infers spend or allowance. Local content-free usage journaling is disabled by default and is controlled with `advisor-config.sh journal enable`, `disable`, `status`, and `clear`; explicit Astra records preserve tier `opt-in`, and all records omit prompts, answers, paths, child/session IDs, authentication material, and raw errors. Journal failure is surfaced as a sanitized warning without retrying a model or failing otherwise accepted advice.
+The consultation envelope records an opaque consultation ID plus per-attempt and aggregate duration/token accounting when the host provides structured counters. This preserves the canonical eight-line response and never infers spend or allowance. Local content-free usage journaling is disabled by default and is controlled with `advisor-config.sh journal enable`, `disable`, `status`, and `clear`; records preserve the Astra policy level and omit prompts, answers, paths, child/session IDs, authentication material, and raw errors. Journal failure is surfaced as a sanitized warning without retrying a model or failing otherwise accepted advice.
