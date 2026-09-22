@@ -1,0 +1,44 @@
+{
+  "checkpoint": "CP4",
+  "status": "COMPLETE",
+  "plan": "Advisor_New_Plan.md",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "code_commit": "1cb6110",
+  "parent_receipt_sha256": "sha256:f1f15b9b39eb2c4e6f338c04e18ffd3eb657bfe13f8a8387474d07361bc39e7f",
+  "checks": [
+    {
+      "command": "python -m unittest tests.test_advisor_chain tests.test_advisor_policy",
+      "status": "PASS",
+      "result": "15 tests, 0 failures"
+    },
+    {
+      "command": "python -m py_compile plugins/advisor/scripts/advisor_chain.py plugins/advisor/scripts/advisor_policy.py plugins/advisor/scripts/advisor_config.py plugins/advisor/tests/test_advisor_chain.py",
+      "status": "PASS"
+    },
+    {
+      "command": "sh -n plugins/advisor/scripts/run-advisor.sh",
+      "status": "PASS",
+      "evidence": "Git for Windows sh.exe"
+    },
+    {
+      "command": "POSIX multiprocess locking/crash suite",
+      "status": "UNAVAILABLE",
+      "reason": "The host lacks jq/python3 in Git Bash and no Linux/WSL runtime was installed; portable Windows state-machine evidence is available."
+    },
+    {
+      "command": "git diff --cached --check",
+      "status": "PASS"
+    }
+  ],
+  "changed_files_digest": "sha256:da815974e1d9089b3422f2f674d778aecc834b082efa2482125206a15782af1f",
+  "advisor_opportunity": {
+    "model": "gpt-6-astra",
+    "reasoning_effort": "low",
+    "status": "accepted",
+    "escalation": "NONE",
+    "scope": "monotonic ledger, crash/concurrency failure semantics, and implementation lock"
+  },
+  "implementation_started": true,
+  "next_action": "Execute CP5 regression/package/docs/static-verifier migration and distinguish legacy diagnostics from active Astra routing"
+}
