@@ -1787,7 +1787,7 @@ def test_compatibility(
         command.extend(("--sessions-dir", sessions_dir))
     if on_status is not None:
         on_status(
-            f"authorized synthetic canary for {pair['model']} / {pair['effort']}; maximum two attempts"
+            f"authorized synthetic canary for {pair['model']} / {pair['effort']}; one attempt only"
         )
     deadline = load_settings(paths)["deadline_seconds"]
     try:

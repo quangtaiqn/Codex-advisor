@@ -52,11 +52,21 @@ if [ -n "$canary_token" ]; then
   role=advisor-compatibility-test
 elif [ -n "$role" ]; then
   case "$role" in
-    advisor-terra|advisor-sol|advisor-astra) tier=advisor; level=low; model=gpt-6-astra; effort=low; deadline_seconds=300 ;;
+    advisor-terra|advisor-sol|advisor-astra) tier=advisor; level=low ;;
     *) fail "unsupported role" ;;
   esac
   selection_source=legacy-alias
   role=advisor-astra
+  if ! resolution=$(python3 "$script_dir/advisor_config.py" --json resolve --level low); then
+    config_error=$(printf '%s' "$resolution" | jq -r '.error // empty' 2>/dev/null || :)
+    [ -n "$config_error" ] || config_error='active Astra policy is unavailable'
+    fail "$config_error"
+  fi
+  model=$(printf '%s' "$resolution" | jq -r '.launch.model') || fail 'invalid active Astra policy'
+  effort=$(printf '%s' "$resolution" | jq -r '.launch.effort') || fail 'invalid active Astra policy'
+  deadline_seconds=$(printf '%s' "$resolution" | jq -r '.launch.deadline_seconds') || fail 'invalid active Astra policy'
+  selection_revision=$(printf '%s' "$resolution" | jq -c '.launch.selection_revision') || fail 'invalid active Astra policy'
+  source_revision=$(printf '%s' "$resolution" | jq -c '.launch.source_revision') || fail 'invalid active Astra policy'
 else
   resolution_label='live Advisor configuration'
   fallback_error='active Astra policy is unavailable'
@@ -125,7 +135,7 @@ terminal_failure() {
   case "$failure_message" in
     *deadline*|*timed*out*) consultation_outcome=timed_out; attempt_outcome=timed_out ;;
     *cancel*) consultation_outcome=cancelled; attempt_outcome=cancelled ;;
-    *validation*retry*) consultation_outcome=retry_exhausted; attempt_outcome=rejected_response ;;
+    *validation*|*rejected_response*) consultation_outcome=failed; attempt_outcome=rejected_response ;;
     *runtime*|*inspection*) consultation_outcome=failed; attempt_outcome=runtime_failed ;;
     *) consultation_outcome=failed; attempt_outcome=launch_failed ;;
   esac
@@ -159,7 +169,7 @@ PY
     journal_record=$(jq -cn --arg id "$consultation_id" --arg started "$consultation_started" --arg finished "$consultation_finished" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg outcome "$consultation_outcome" --argjson duration "$total_duration_ms" --argjson attempts "$attempt_records" --argjson totals "$totals" '{schema_version:1,consultation_id:$id,started_at:$started,finished_at:$finished,tier:$tier,model:$model,effort:$effort,outcome:$outcome,transport_contract_version:"1.4",total_duration_ms:$duration,attempts:[$attempts[]|{number,duration_ms,outcome,usage}],totals:$totals}') || journal_record=''
     if [ -z "$journal_record" ] || ! python3 "$script_dir/advisor_config.py" --json _journal-record "$journal_record" >/dev/null 2>&1; then printf '%s\n' 'ADVISOR TRANSPORT: warning (usage journal write unavailable)' >&2; fi
   fi
-  jq -cn --arg id "$consultation_id" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --arg outcome "$consultation_outcome" --argjson attempts "$attempt_records" --argjson totals "$totals" --argjson availability "$availability" --argjson duration "$total_duration_ms" '{schema_version:3,status:"unavailable",outcome:$outcome,consultation_id:$id,selection:{tier:$tier,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:null,response:null}' || :
+  jq -cn --arg id "$consultation_id" --arg tier "$tier" --arg level "$level" --arg model "$model" --arg effort "$effort" --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --arg outcome "$consultation_outcome" --argjson attempts "$attempt_records" --argjson totals "$totals" --argjson availability "$availability" --argjson duration "$total_duration_ms" '{schema_version:3,status:"unavailable",outcome:$outcome,consultation_id:$id,selection:{tier:$tier,level:$level,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},escalation:null,attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:null,response:null}' || :
 }
 
 [ -n "$parent_thread_id" ] || parent_thread_id=${CODEX_THREAD_ID-}
@@ -388,92 +398,79 @@ validate_response() {
 }
 
 attempt=1
-first_child_thread_id=''
 response_verified=false
 prompt=$base_prompt
-while [ "$attempt" -le 2 ]; do
-  deadline_ok || fail "consultation deadline exceeded"
-  events=$transport_dir/events.$attempt.jsonl
-  response=$transport_dir/response.$attempt.json
-  evidence=$transport_dir/evidence.$attempt.json
-  stream=$transport_dir/response-stream.$attempt.jsonl
-  parser_status_file=$transport_dir/response-stream.$attempt.status
-  normalized=$transport_dir/normalized.$attempt.json
-  rendered=$transport_dir/rendered.$attempt.txt
-  workdir=$transport_dir/workdir.$attempt
-  mkdir "$workdir" || fail "isolated work directory creation failed"
+deadline_ok || fail "consultation deadline exceeded"
+events=$transport_dir/events.$attempt.jsonl
+response=$transport_dir/response.$attempt.json
+evidence=$transport_dir/evidence.$attempt.json
+stream=$transport_dir/response-stream.$attempt.jsonl
+parser_status_file=$transport_dir/response-stream.$attempt.status
+normalized=$transport_dir/normalized.$attempt.json
+rendered=$transport_dir/rendered.$attempt.txt
+workdir=$transport_dir/workdir.$attempt
+mkdir "$workdir" || fail "isolated work directory creation failed"
 
-  attempt_started_ms=$(python3 - <<'PY'
+attempt_started_ms=$(python3 - <<'PY'
 import time
 print(time.monotonic_ns() // 1_000_000)
 PY
 ) || fail "attempt timing initialization failed"
-  attempt_open=true
-  progress "launching $role ($model, $effort, read-only) deadline ${deadline_seconds}s, attempt $attempt of 2"
-  # Legacy calls serialize model_reasoning_effort="high"; saved tiers serialize the validated effort.
-  python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" -- codex exec --json --ignore-user-config --ignore-rules \
-    --sandbox read-only --model "$model" -c "model_reasoning_effort=\"$effort\"" \
-    -C "$workdir" --skip-git-repo-check --output-schema "$response_schema" \
-    --output-last-message "$response" - <"$prompt" >"$events" &
-  supervisor_pid=$!
-  transport_status=0
-  wait "$supervisor_pid" || transport_status=$?
-  supervisor_pid=''
-  if [ "$transport_status" -ne 0 ]; then
-    fail "codex exec failed"
-  fi
-  deadline_ok || fail "consultation deadline exceeded"
-  [ -f "$events" ] && [ "$(wc -c <"$events" | tr -d ' ')" -le 1000000 ] || fail "transport events exceeded byte limit"
-  attempt_finished_ms=$(python3 - <<'PY'
+attempt_open=true
+progress "launching $role ($model, $effort, read-only) deadline ${deadline_seconds}s, attempt 1 of 1"
+python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" -- codex exec --json --ignore-user-config --ignore-rules \
+  --sandbox read-only --model "$model" -c "model_reasoning_effort=\"$effort\"" \
+  -C "$workdir" --skip-git-repo-check --output-schema "$response_schema" \
+  --output-last-message "$response" - <"$prompt" >"$events" &
+supervisor_pid=$!
+transport_status=0
+wait "$supervisor_pid" || transport_status=$?
+supervisor_pid=''
+if [ "$transport_status" -ne 0 ]; then
+  fail "codex exec failed"
+fi
+deadline_ok || fail "consultation deadline exceeded"
+[ -f "$events" ] && [ "$(wc -c <"$events" | tr -d ' ')" -le 1000000 ] || fail "transport events exceeded byte limit"
+attempt_finished_ms=$(python3 - <<'PY'
 import time
 print(time.monotonic_ns() // 1_000_000)
 PY
 ) || fail "attempt timing failed"
-  attempt_duration_ms=$((attempt_finished_ms - attempt_started_ms))
-  attempt_usage=$(python3 "$script_dir/advisor_process.py" usage --events "$events" --duration-ms "$attempt_duration_ms" 2>/dev/null || printf '{"duration_ms":%s,"usage":{"input":null,"cached_input":null,"output":null,"reasoning":null},"availability":{"input":"unavailable","cached_input":"unavailable","output":"unavailable","reasoning":"unavailable"}}' "$attempt_duration_ms")
+attempt_duration_ms=$((attempt_finished_ms - attempt_started_ms))
+attempt_usage=$(python3 "$script_dir/advisor_process.py" usage --events "$events" --duration-ms "$attempt_duration_ms" 2>/dev/null || printf '{"duration_ms":%s,"usage":{"input":null,"cached_input":null,"output":null,"reasoning":null},"availability":{"input":"unavailable","cached_input":"unavailable","output":"unavailable","reasoning":"unavailable"}}' "$attempt_duration_ms")
 
-  child_thread_id=$(jq -r 'select(.type == "thread.started") | .thread_id' "$events" 2>/dev/null) || fail "malformed transport events"
-  [ "$(printf '%s\n' "$child_thread_id" | awk 'NF { count += 1 } END { print count + 0 }')" -eq 1 ] || fail "ambiguous child thread"
-  [ "$child_thread_id" != "$parent_thread_id" ] || fail "consultation reused the parent thread"
-  [ "$attempt" -eq 1 ] || [ "$child_thread_id" != "$first_child_thread_id" ] || fail "retry reused the first child thread"
-  [ "$attempt" -ne 1 ] || first_child_thread_id=$child_thread_id
+child_thread_id=$(jq -r 'select(.type == "thread.started") | .thread_id' "$events" 2>/dev/null) || fail "malformed transport events"
+[ "$(printf '%s\n' "$child_thread_id" | awk 'NF { count += 1 } END { print count + 0 }')" -eq 1 ] || fail "ambiguous child thread"
+[ "$child_thread_id" != "$parent_thread_id" ] || fail "consultation reused the parent thread"
 
-  progress "inspecting persisted runtime evidence for attempt $attempt"
-  set -- --expected-role "$role" --expected-model "$model" --expected-effort "$effort" --expected-parent "$parent_thread_id"
-  [ -z "$sessions_dir" ] || set -- --sessions-dir "$sessions_dir" "$@"
-  inspection_error=$transport_dir/inspection-error.$attempt
-  python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" -- sh "$script_dir/inspect-agent-runtime.sh" "$@" "$child_thread_id" >"$evidence" 2>"$inspection_error" &
-  supervisor_pid=$!
-  inspection_status=0
-  wait "$supervisor_pid" || inspection_status=$?
-  supervisor_pid=''
-  if [ "$inspection_status" -ne 0 ]; then
-    if grep -Fqx 'ERROR: runtime_provenance_mismatch' "$inspection_error"; then
-      fail "runtime_provenance_mismatch"
-    fi
-    fail "runtime inspection failed"
+progress "inspecting persisted runtime evidence for attempt 1"
+set -- --expected-role "$role" --expected-model "$model" --expected-effort "$effort" --expected-parent "$parent_thread_id"
+[ -z "$sessions_dir" ] || set -- --sessions-dir "$sessions_dir" "$@"
+inspection_error=$transport_dir/inspection-error.$attempt
+python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" -- sh "$script_dir/inspect-agent-runtime.sh" "$@" "$child_thread_id" >"$evidence" 2>"$inspection_error" &
+supervisor_pid=$!
+inspection_status=0
+wait "$supervisor_pid" || inspection_status=$?
+supervisor_pid=''
+if [ "$inspection_status" -ne 0 ]; then
+  if grep -Fqx 'ERROR: runtime_provenance_mismatch' "$inspection_error"; then
+    fail "runtime_provenance_mismatch"
   fi
-  deadline_ok || fail "consultation deadline exceeded"
+  fail "runtime inspection failed"
+fi
+deadline_ok || fail "consultation deadline exceeded"
 
-  validation_class='' validation_field=''
-  if validate_response "$response" "$stream" "$parser_status_file" "$normalized" "$rendered"; then
-    attempt_records=$(jq -cn --argjson prior "$attempt_records" --argjson usage "$attempt_usage" --argjson number "$attempt" '$prior + [{number:$number,outcome:"accepted",duration_ms:$usage.duration_ms,usage:$usage.usage,availability:$usage.availability}]') || fail "usage record construction failed"
-    attempt_open=false
-    response_verified=true
-    break
-  fi
+validation_class='' validation_field=''
+if validate_response "$response" "$stream" "$parser_status_file" "$normalized" "$rendered"; then
+  attempt_records=$(jq -cn --argjson prior "$attempt_records" --argjson usage "$attempt_usage" --argjson number "$attempt" '$prior + [{number:$number,outcome:"accepted",duration_ms:$usage.duration_ms,usage:$usage.usage,availability:$usage.availability}]') || fail "usage record construction failed"
+  attempt_open=false
+  response_verified=true
+else
   attempt_records=$(jq -cn --argjson prior "$attempt_records" --argjson usage "$attempt_usage" --argjson number "$attempt" '$prior + [{number:$number,outcome:"rejected_response",duration_ms:$usage.duration_ms,usage:$usage.usage,availability:$usage.availability}]') || fail "usage record construction failed"
   attempt_open=false
   progress "response validation failed (class=$validation_class field=$validation_field)"
-  [ "$attempt" -eq 1 ] || fail "advisor response failed validation after retry (class=$validation_class field=$validation_field)"
-  progress "runtime-valid response failed validation; launching one fresh corrective retry (class=$validation_class field=$validation_field)"
-  prompt=$transport_dir/prompt.2.txt
-  {
-    sed -n '1,$p' "$base_prompt"
-    printf '\nCorrection: the previous response failed validation (class=%s field=%s). Return a new schema-valid object.\n' "$validation_class" "$validation_field"
-  } >"$prompt"
-  attempt=2
-done
+  fail "advisor response failed validation (class=$validation_class field=$validation_field)"
+fi
 [ "$response_verified" = true ] || fail "advisor response was not verified"
 deadline_ok || fail "consultation deadline exceeded"
 

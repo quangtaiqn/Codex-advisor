@@ -67,6 +67,7 @@ response = {
     "recommendation": "neutral path", "why": "reason", "strongest_objection": "objection",
     "change_my_mind": "evidence", "acceptance_checks": ["check"], "risks": "none",
     "follow_up_areas": "none",
+    "escalation": {"next_level": None, "reason": "sufficient", "unresolved_difficulty": "", "required_resolution": ""},
 }
 if case == "invalid-once" and attempt == 1:
     response.pop("risks")
@@ -207,7 +208,7 @@ class AdvisorCliTests(unittest.TestCase):
         status = json.loads(self.run_cli("--json", "status").stdout)
         self.assertEqual(status["selections"]["standard"]["model"], "gpt-5.6-terra")
 
-    def test_canary_uses_at_most_two_attempts_and_records_only_success(self) -> None:
+    def test_canary_invalid_response_is_terminal_without_retry(self) -> None:
         self.add()
         result = self.run_cli(
             "--json", "models", "test", "manual/model", "--effort", "high",
@@ -215,11 +216,11 @@ class AdvisorCliTests(unittest.TestCase):
             "--sessions-dir", str(self.home / "sessions"),
             env={**self.env, "FAKE_CODEX_CASE": "invalid-once"},
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(self.invocations()), 2)
-        self.assertIn("one fresh corrective retry", result.stderr)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(len(self.invocations()), 1)
+        self.assertNotIn("fresh corrective retry", result.stderr)
         catalog = json.loads((self.home / "advisor" / "catalog.json").read_text())
-        self.assertEqual(len(catalog["compatibility"]), 1)
+        self.assertEqual(len(catalog["compatibility"]), 0)
 
     def test_invalid_settings_recovery_reset_deadline_journal_and_errors(self) -> None:
         self.assertEqual(self.run_cli("--json", "deadline", "120").returncode, 0)

@@ -63,7 +63,7 @@ if case == "journal-failure":
     if journal.exists(): shutil.rmtree(journal)
     journal.symlink_to(Path(os.environ["FAKE_COUNT"]))
 if case == "failure" or (case == "retry-failure" and attempt == 2): raise SystemExit(9)
-response={"recommendation":"neutral","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}
+response={"recommendation":"neutral","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":None,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}
 if case in ("retry", "retry-failure", "partial") and attempt == 1: response.pop("risks")
 output.write_text(json.dumps(response))
 """
@@ -271,7 +271,7 @@ class UsageTests(unittest.TestCase):
             check=False,
         )
 
-    def test_real_wrapper_success_retry_and_terminal_failure_usage(self):
+    def test_real_wrapper_success_and_terminal_failure_usage(self):
         success = self.transport("success")
         self.assertEqual(success.returncode, 0, success.stderr)
         envelope = json.loads(success.stdout)
@@ -285,19 +285,19 @@ class UsageTests(unittest.TestCase):
         )
         (self.base / "count").unlink()
         retry = self.transport("retry", journal=True)
-        self.assertEqual(retry.returncode, 0, retry.stderr)
+        self.assertNotEqual(retry.returncode, 0)
         envelope = json.loads(retry.stdout)
         self.assertEqual(
             [x["outcome"] for x in envelope["attempts"]],
-            ["rejected_response", "accepted"],
+            ["rejected_response"],
         )
-        self.assertEqual(envelope["usage"]["totals"]["input"], 30)
+        self.assertEqual(envelope["usage"]["totals"]["input"], 10)
         (self.base / "count").unlink()
         partial = self.transport("partial")
-        self.assertEqual(partial.returncode, 0, partial.stderr)
+        self.assertNotEqual(partial.returncode, 0)
         envelope = json.loads(partial.stdout)
         self.assertEqual(envelope["usage"]["totals"]["input"], 10)
-        self.assertEqual(envelope["usage"]["availability"]["input"], "partial")
+        self.assertEqual(envelope["usage"]["availability"]["input"], "available")
         (self.base / "count").unlink()
         failed = self.transport("failure", journal=True)
         self.assertNotEqual(failed.returncode, 0)
@@ -312,9 +312,9 @@ class UsageTests(unittest.TestCase):
         envelope = json.loads(retry_failed.stdout)
         self.assertEqual(
             [row["outcome"] for row in envelope["attempts"]],
-            ["rejected_response", "launch_failed"],
+            ["rejected_response"],
         )
-        self.assertEqual(envelope["usage"]["totals"]["input"], 30)
+        self.assertEqual(envelope["usage"]["totals"]["input"], 10)
 
     def test_journal_write_failure_warns_without_failing_advice(self):
         result = self.transport("journal-failure", journal=True)

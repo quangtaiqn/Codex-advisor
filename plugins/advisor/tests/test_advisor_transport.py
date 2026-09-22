@@ -117,7 +117,8 @@ print(json.dumps({"type": "thread.started", "thread_id": child}))
 response = {
     "recommendation": "neutral path", "why": "reason", "strongest_objection": "objection",
     "change_my_mind": "evidence", "acceptance_checks": ["check"], "risks": "none",
-    "follow_up_areas": "none"
+    "follow_up_areas": "none",
+    "escalation": {"next_level": None, "reason": "sufficient", "unresolved_difficulty": "", "required_resolution": ""}
 }
 if case == "mutate-retry" and attempt == 1:
     response.pop("risks")
@@ -345,6 +346,16 @@ class AdvisorTransportTests(unittest.TestCase):
             [("gpt-5.6-terra", "high")],
         )
 
+    def test_legacy_role_alias_cannot_bypass_invalid_active_policy(self) -> None:
+        self.live_config_path.write_text(
+            '[standard]\nmodel = "gpt-5.6-terra"\neffort = "high"\n\n'
+            '[specialist]\nmodel = "gpt-5.6-sol"\neffort = "high"\n',
+            encoding="utf-8",
+        )
+        result = self.run_transport("--role", "advisor-terra")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.rows(), [])
+
     def test_cli_version_change_does_not_replace_live_tier_before_launch(self) -> None:
         self.qualify("future/model")
         settings = config.load_settings(self.paths)
@@ -444,29 +455,17 @@ class AdvisorTransportTests(unittest.TestCase):
         )
         self.assertIn("content-free transport canary", self.rows()[0]["prompt"])
 
-    def test_retry_freezes_live_pair_and_digest_then_next_consult_reloads(self) -> None:
-        original_digest = config.hashlib.sha256(self.live_config_path.read_bytes()).hexdigest()
+    def test_response_validation_is_terminal_and_does_not_retry(self) -> None:
         result = self.run_transport("--tier", "standard", case="mutate-retry")
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(self.rows()), 1)
+        envelope = json.loads(result.stdout)
+        self.assertEqual(envelope["status"], "unavailable")
         self.assertEqual(
-            [(row["model"], row["effort"]) for row in self.rows()],
-            [("gpt-5.6-terra", "high"), ("gpt-5.6-terra", "high")],
+            [row["outcome"] for row in envelope["attempts"]],
+            ["rejected_response"],
         )
-        self.assertEqual(
-            json.loads(result.stdout)["selection"]["source_revision"],
-            f"sha256:{original_digest}",
-        )
-        self.assertEqual(len(self.rows()), 2)
-        next_result = self.run_transport("--tier", "standard")
-        self.assertEqual(next_result.returncode, 0, next_result.stderr)
-        self.assertEqual(
-            (self.rows()[2]["model"], self.rows()[2]["effort"]),
-            ("gpt-5.6-sol", "ultra"),
-        )
-        self.assertNotEqual(
-            json.loads(next_result.stdout)["selection"]["source_revision"],
-            f"sha256:{original_digest}",
-        )
+        self.assertNotIn("fresh corrective retry", result.stderr)
 
     def test_runtime_mismatch_reroute_and_tool_use_are_terminal(self) -> None:
         for case in ("wrong-model", "wrong-effort", "reroute", "tool"):

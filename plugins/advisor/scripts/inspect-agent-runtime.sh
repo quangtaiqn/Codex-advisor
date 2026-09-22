@@ -16,7 +16,7 @@ while [ "$#" -gt 0 ]; do
     *) [ -z "$thread_id" ] || fail "only one THREAD_ID is allowed"; thread_id=$1; shift ;;
   esac
 done
-[ -n "$expected_effort" ] || expected_effort=high
+[ -n "$expected_effort" ] || expected_effort=low
 [ -n "$thread_id" ] && [ -n "$expected_role" ] && [ -n "$expected_model" ] && [ -n "$expected_parent" ] || fail "usage: inspect-agent-runtime.sh [--sessions-dir DIR] --expected-role ROLE --expected-model MODEL [--expected-effort EFFORT] --expected-parent THREAD_ID THREAD_ID"
 printf '%s\n' "$expected_model" | LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$' || fail "unsafe expected model"
 case "$expected_effort" in none|minimal|low|medium|high|xhigh|max|ultra) ;; *) fail "unsupported expected effort" ;; esac
