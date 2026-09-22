@@ -83,10 +83,10 @@ sh scripts/install-agents.sh
 sh scripts/install-agents.sh --check
 ```
 
-The installer adds `advisor-terra.toml`, `advisor-sol.toml`, and the explicit opt-in
-`advisor-astra.toml`. Astra is byte-exactly installed and checked as an independent
-fixed role; it is never selected by Standard/Specialist defaults, trigger selection,
-or fallback. During an attended upgrade it
+The installer adds the three compatibility filenames `advisor-terra.toml`,
+`advisor-sol.toml`, and `advisor-astra.toml`. All three are byte-exactly installed
+and checked, but each active launch normalizes to the same Astra/low policy; the old
+names are never independent model routes or fallbacks. During an attended upgrade it
 recoverably retires byte-exact known historical Luna, Terra, and Sol-reviewer files
 to `<role>.toml.retired-v0.6.0`, the old Sol consultation role to
 `sol-advisor.toml.retired-v1.0.0`, and the obsolete neutral role to
@@ -244,11 +244,11 @@ zero tool use; it is not a metadata fallback. Wrapper-owned semantic validation
 accepts only schema-valid, nonblank fields and deterministically renders the exact
 canonical eight-line receipt above. A runtime-valid response-validation failure emits
 only a redacted failure `class` and `field`, then stops. A consultation launches at
-most one child per effort level; there is no same-effort corrective retry.
+most one child for the reserved level; there is no corrective retry or retry prompt.
 Packet, launcher, event, identity, same-session, runtime, wrong-model,
 wrong-effort, non-read-only, normalization, or tool-use failure is terminal and never
 retries. A second response-validation failure is unavailable. Rejected content is
-never emitted, accepted, merged, or copied into the retry prompt. Every attempt
+never emitted, accepted, or merged. Every attempt
 artifact is confined to one private mode-0700 consultation directory beneath the
 private transport root; an unconditional exit trap removes it after every wrapper
 exit. If packet evidence is
@@ -265,7 +265,7 @@ remains primary-agent work outside this consultation. An unavailable result cann
 be rescued by a replacement advisor or same-checkpoint follow-up, and the advisor
 may not spawn or conduct that work.
 
-Resolve the tier with the installed helper. Immediately before invoking the
+Resolve the active level with the installed helper. Immediately before invoking the
 consultation transport, the root emits the actual resolved metadata:
 
 ```text
@@ -303,12 +303,12 @@ with no call/result receipt and no transport invocation.
 ## Runtime evidence
 
 Persisted `codex exec` runtime metadata is primary. The transport must establish one
-fresh thread, the exact frozen model and effort resolved for the selected tier, a read-only sandbox, allowlisted
+fresh thread, the exact frozen model and effort resolved for the selected level, a read-only sandbox, allowlisted
 `codex_exec` or `Codex Desktop` provenance, and a thread distinct from the parent.
 The wrapper runs:
 
 ```sh
-sh <absolute-installed-plugin-root>/scripts/inspect-agent-runtime.sh --expected-role <tier-label> --expected-model <selected-model> --expected-effort <selected-effort> --expected-parent <parent-thread-id> <thread-id>
+sh <absolute-installed-plugin-root>/scripts/inspect-agent-runtime.sh --expected-role advisor-astra --expected-model <selected-model> --expected-effort <selected-effort> --expected-parent <parent-thread-id> <thread-id>
 ```
 
 The inspector emits only thread, parent, role, transport, model, effort,

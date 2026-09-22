@@ -5,15 +5,13 @@ the installed skill. Repository-root documentation is not part of the ZIP.
 
 ## Defaults and evidence
 
-`advisor.toml` has exactly `[standard]` and `[specialist]` sections, each with `model`
-and `effort`. Defaults are `gpt-5.6-terra` / `high` and `gpt-5.6-sol` / `high`.
-Edit the installed file in place; changes apply to the next `--tier` consultation and
-are frozen with a SHA-256 content revision for retries. No local state, discovery,
-catalog registration, canary, or file copy is needed. Allowed efforts are `none`,
-`minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`. Future syntactically
-valid model selectors are allowed subject to account/runtime support. Setting
-`specialist.model = "gpt-6-astra"` opts into its higher usage. Plugin updates or a
-reinstall can replace the edited file.
+`advisor.toml` has exactly one `[advisor]` table with the fixed model
+`gpt-6-astra` and `effort_ladder = ["low", "medium", "high", "xhigh"]`.
+`extra_high` is the skill label for runtime `xhigh`. Low is the direct entry point;
+the other levels require an adjacent escalation recorded by the checkpoint ledger.
+The helper freezes the policy digest for each pass. Local state, discovery, catalog,
+canary, preset, and legacy saved selections cannot change active routing. Plugin
+updates or reinstalling can replace the bundled policy.
 
 This grants only permission to attempt the real consultation: the child must still
 pass exact runtime model, effort, read-only, zero-tool, and response-schema checks.
@@ -25,22 +23,18 @@ sh scripts/advisor-config.sh doctor
 ```
 
 The helper reports the active path and digest. It never automatically upgrades or
-falls back. The old `--role advisor-terra` and `--role advisor-sol` aliases are legacy
-fixed pins and do not follow the file.
-`--role advisor-astra` is an explicit fixed opt-in pin for Astra/high; it is not a tier
-default, trigger selection, fallback, or audit tier.
+falls back. The old `--role advisor-terra`, `--role advisor-sol`, and
+`--role advisor-astra` names are compatibility aliases that all enter Astra/low;
+they are not separate model routes.
 
-Standard is for ordinary bounded material architecture, interface, data-model, and
-generic-advisor decisions. Specialist is for cases where targeted evidence still leaves
-an unresolved cross-module/system design, compatibility or concurrency boundary,
-competing diagnosis, security/trust boundary, recovery, irreversible migration, or
-data-loss decision. Project importance, security adjacency, and an ordinary
-architecture question alone remain Standard.
+The eligibility decision is checkpoint-based: consult only when unresolved uncertainty
+has material impact after cheap checks. Routine, settled, implementation-started,
+completion/reassurance, and no-delegation work is skipped.
 
 ## Advanced legacy tools
 
 `models refresh`, `models add`, named presets, and synthetic canaries remain isolated
-advanced tools. They do not choose normal `--tier` consultations. `set` and `reset`
+advanced tools. They do not choose normal `--level` consultations. `set` and `reset`
 reject rather than claim to change the active tier; `restore` can restore legacy local
 state but explicitly reports that `advisor.toml` remains authoritative.
 
@@ -53,11 +47,11 @@ sh scripts/advisor-config.sh models test MODEL --effort EFFORT --authorize-usage
 `--authorize-usage` is explicit consent for the fixed content-free synthetic canary.
 It does not trigger a consultation, and a failed probe remains safe-unavailable.
 The catalog, an account's model list, and a saved selection are not consent. Success
-records the actual local CLI version (baseline `0.153.2`) as provenance plus the transport contract, but
-leaves tier selections unchanged. CLI updates do not stale the receipt; only its exact
-model, effort, or transport contract can do so. Local tests mock the synthetic canary
-path. Separately, one explicit `advisor-astra` consultation completed successfully on
-1.4.3 with verified Astra/high, read-only, zero-tool runtime evidence.
+records the actual local CLI version (baseline `0.153.2`) as provenance plus the
+transport contract, but leaves the active Astra policy unchanged. CLI updates do not
+stale the receipt; only its exact model, effort, or transport contract can do so.
+Local tests mock the synthetic canary path. Historical catalog and canary records are
+diagnostic-only and never establish active routing or entitlement.
 
 ## Local state and privacy
 
@@ -80,5 +74,4 @@ coverage can be partial.
 
 The 1.4.4 deployment record says the then-live privacy page byte-matched its repository
 candidate. This 1.4.5 candidate updates that copy for the same local configuration/catalog
-state, content-free journal, automatic Terra/Sol defaults, and separate explicit-only Astra
-role; it is not yet deployed.
+state, content-free journal, and the Astra low-first policy; it is not yet deployed.

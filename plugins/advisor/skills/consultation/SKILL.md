@@ -184,6 +184,7 @@ the sole supported wrapper model-output format. Direct/native role invocation is
 recommendation, why, strongest_objection, change_my_mind, risks,
 follow_up_areas: required nonblank strings
 acceptance_checks: required nonempty array of nonblank strings
+escalation: typed immediate-next-level object
 ```
 
 5. Run exactly one selected consultation. Invoke the fixed installed-plugin wrapper
@@ -193,8 +194,8 @@ acceptance_checks: required nonempty array of nonblank strings
    blocked there. The elevation applies only to the fixed launcher; the consultation
    process itself is forced to `--sandbox read-only` and must pass runtime inspection.
    Do not call `codex exec` directly and do not pass a model or effort override;
-   `run-advisor.sh` resolves the selected tier once, uses its exact live-file model and
-   effort, forces `--sandbox read-only`, starts a fresh
+   `run-advisor.sh` resolves the selected Astra level once, uses its fixed policy model
+   and runtime effort, forces `--sandbox read-only`, starts a fresh
    `codex exec` thread using existing Codex authentication, and never reads or copies
    authentication files:
 
@@ -274,20 +275,20 @@ RISKS: <risks>
 FOLLOW-UP AREAS: <follow_up_areas>
 ```
 
-   Mandatory post-response inspection proves the exact frozen model and effort,
+   Mandatory post-response inspection proves the exact frozen Astra model and effort,
    read-only isolation, distinct-thread identity, `codex_exec` provenance,
-   and zero tool calls before validation can succeed. When the first child proves the exact frozen model and effort,
-   read-only runtime, distinct thread, allowlisted `codex_exec` or `Codex Desktop`
-   provenance, and zero tool calls but
-   returns a runtime-valid response-validation failure, the wrapper emits only its
-   redacted failure `class` and `field` on stderr and stops. It never performs a
-   corrective retry at the same effort; a consultation launches at most one child
-   per effort level.
+   and zero tool calls before validation can succeed. A schema or response-validation
+   failure emits only its redacted failure `class` and `field` on stderr and stops.
+   It performs no corrective retry, launches no second child for the same level,
+   or copies rejected content into a retry prompt. The durable checkpoint ledger
+   consumes the reserved level even when the process is interrupted; resume reconciles
+   the recorded state rather than replaying it.
    Packet, launcher, event, identity,
    same-session, runtime, wrong-model, wrong-effort, non-read-only, normalization, provenance, or tool-use failure
    is terminal and never retries. A second response-validation failure fails closed.
-   Rejected content is never emitted, accepted, merged, or copied into the retry
-   prompt. Every attempt artifact remains only in one private mode-0700 consultation directory beneath the private transport root; an unconditional exit trap removes
+   Rejected content is never emitted, accepted, or merged. Every attempt artifact
+   remains only in one private mode-0700 consultation directory beneath the private
+   transport root; an unconditional exit trap removes
    that directory after every wrapper exit.
 6. Receive the required advisor response from the verified JSON without supplying
    more context or asking it to research. A valid processed response contains either

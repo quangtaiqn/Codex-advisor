@@ -16,7 +16,7 @@ Use Advisor for a fresh, read-only second opinion on whether the fictional Atlas
 
 ## Expected outcome
 
-Advisor emits `ADVISOR DECISION` with `route: consult`, followed by `ADVISOR CALL` and a verified `ADVISOR RESULT` from `advisor-terra`.
+Advisor emits `ADVISOR DECISION` with `route: consult`, followed by an Astra-low `ADVISOR CALL` and a verified `ADVISOR RESULT`.
 
 ## Why this is the expected outcome
 

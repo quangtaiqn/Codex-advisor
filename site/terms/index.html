@@ -75,7 +75,7 @@
     <h2 id="responsibilities">4. Prerequisites and your responsibilities</h2>
     <ul>
         <li><strong>Host prerequisites.</strong> You are solely responsible for providing and maintaining the required local host prerequisites, including a supported host (Codex CLI or Codex desktop), a POSIX shell, <code>jq</code>, and the appropriate execution permissions.</li>
-        <li><strong>Model availability.</strong> Execution uses the models and effort configured in the bundled <code>advisor.toml</code>. Automatic Standard remains Terra/high for ordinary bounded decisions; automatic Specialist remains Sol/high only when targeted evidence leaves an eligible decision unresolved. The separate <code>advisor-astra</code> role is explicit-only, uses Astra/high, and is never selected automatically. You are responsible for model availability, all OpenAI usage, quotas, and fees on your account.</li>
+        <li><strong>Model availability.</strong> Execution uses the fixed Astra model and ordered effort ladder configured in the bundled <code>advisor.toml</code>: low, medium, high, then extra_high (runtime <code>xhigh</code>) after verified adjacent escalation. Legacy model names are diagnostic compatibility aliases only. You are responsible for model availability, all OpenAI usage, quotas, and fees on your account.</li>
         <li><strong>Configuration changes.</strong> You may edit the bundled configuration in place, but a plugin update or reinstall may replace those edits.</li>
         <li><strong>Data protection.</strong> You are responsible for ensuring that credentials, confidential keys, and unauthorized proprietary data are not included in consultation packets.</li>
     </ul>

@@ -29,13 +29,13 @@ rationale: The plugin may spawn one fresh read-only advisor but may not implemen
 area: ["plugins/advisor/evals/**", "plugins/advisor/skills/consultation/**"]
 gate_test: plugins/advisor/scripts/verify.sh
 threshold: 3
-rationale: Eligible tasks consult once per decision and complex work adds one completion consultation before it is declared complete, while routine and borderline tasks spawn no advisor.
+rationale: Eligible checkpoints receive at most one advisor opportunity before implementation; routine, settled, completion/reassurance, and borderline work spawn no advisor.
 
 ### INV-5 — Exact runtime identity and isolation
 area: ["plugins/advisor/agents/**", "plugins/advisor/scripts/evaluate-triggers.sh", "plugins/advisor/scripts/inspect-agent-runtime.sh", "plugins/advisor/scripts/inspect-parent-runtime.sh", "plugins/advisor/scripts/run-advisor.sh", "docs/public-directory-compatibility.md"]
 gate_test: plugins/advisor/scripts/verify.sh
 threshold: 3
-rationale: A successful consultation requires an identified parent plus a regular nonsymlinked launcher resolved from the absolute installed-skill root and invoked through the escalated-command boundary, never a workspace-resolved script; packet input uses a non-interpolating quoted heredoc, transport files remain beneath nonsandbox-writable Codex home, and every distinct Codex exec child proves the exact model and effort frozen from the selected tier or legacy route, read-only runtime policy, fresh thread, allowlisted codex_exec or Codex Desktop provenance, no model reroute or migration, and zero tool use before response validation. The installed JSON Schema is the sole supported wrapper model-output contract; wrapper-owned semantic validation renders only an accepted object as the canonical eight-line receipt, while direct/native role invocation is unsupported and not schema-validated. Exactly one fresh corrective retry is allowed only after a runtime-valid response-validation failure and exposes only its redacted failure class and field; a consultation launches at most two children and the total monotonic deadline covers packet capture, both attempts, inspection, and response verification. Packet, launcher, event, identity, same-session, runtime, wrong-model, wrong-effort, non-read-only, normalization, provenance, reroute, and tool-use failures are terminal and never retry. Cancellation terminates and reaps only the wrapper-owned process group. Rejected content never leaves its private mode-0700 consultation directory or enters a retry prompt, and an unconditional exit trap cleanup removes that directory after every wrapper exit. Reaching the history-mapping threshold requires review, but verified remediation or area-touch history is not itself a defect when this canonical gate passes; unresolved recurrence or missing gate evidence remains an escalation.
+rationale: A successful consultation requires an identified parent plus a regular nonsymlinked launcher resolved from the absolute installed-skill root and invoked through the escalated-command boundary, never a workspace-resolved script; packet input uses a non-interpolating quoted heredoc, transport files remain beneath nonsandbox-writable Codex home, and every distinct Codex exec child proves fixed Astra model/effort from the active level ladder, read-only runtime policy, fresh thread, allowlisted codex_exec or Codex Desktop provenance, no model reroute or migration, and zero tool use before response validation. The installed JSON Schema is the sole supported wrapper model-output contract; wrapper-owned semantic validation renders only an accepted object as the canonical eight-line receipt, while direct/native role invocation is unsupported and not schema-validated. Each level launches at most one child: schema or response-validation failure, runtime, launch, identity, isolation, provenance, reroute, or tool-use failures are terminal and never retry. A durable checkpoint ledger reserves the selected level before launch and records completion, failure, or uncertainty so interruption cannot silently reopen it. Cancellation terminates and reaps only the wrapper-owned process group. Rejected content never leaves its private mode-0700 consultation directory, and an unconditional exit trap cleanup removes that directory after every wrapper exit. Reaching the history-mapping threshold requires review, but verified remediation or area-touch history is not itself a defect when this canonical gate passes; unresolved recurrence or missing gate evidence remains an escalation.
 
 ### INV-6 — Switchyard separation
 area: ["plugins/advisor/skills/consultation/**", "README.md", "SPEC.md"]
@@ -91,12 +91,13 @@ rationale: A valid follow-up requires a processed recommendation or concrete res
 area: ["plugins/advisor/advisor.toml", "plugins/advisor/scripts/advisor_config.py", "plugins/advisor/scripts/advisor_process.py", "plugins/advisor/scripts/run-advisor.sh", "plugins/advisor/scripts/inspect-agent-runtime.sh"]
 gate_test: plugins/advisor/scripts/verify.sh
 threshold: 3
-rationale: Normal tiers load only the installed regular, nonsymlinked, bounded
-`advisor.toml`, with exactly Standard and Specialist model/effort pairs and a frozen
-content digest through retry. No state, catalog, canary, or version-eligibility pin
-overrides it; future syntactically valid selectors are allowed and real children still
-prove exact runtime identity, effort, read-only isolation, zero tools, and schema.
-Legacy roles remain pinned and advanced state tools cannot claim to alter live tiers.
+rationale: Active routing loads only the installed regular, nonsymlinked, bounded
+`advisor.toml`, with one fixed Astra model and the low/medium/high/xhigh ladder plus a
+frozen content digest per checkpoint pass. No state, catalog, canary, preset, or legacy
+role name overrides it; higher levels require an adjacent validated escalation and real
+children still prove exact runtime identity, effort, read-only isolation, zero tools,
+and schema. Legacy roles remain compatibility aliases and advanced state tools cannot
+claim to alter active routing.
 Model discovery remains an owned, bounded app-server process with inherited Codex
 provider context, actual JSON-RPC validation, safe state files, and no inference or
 credential handling.

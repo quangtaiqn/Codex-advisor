@@ -1,6 +1,6 @@
 ## Name
 
-Fictional multi-phase completion consultation
+Fictional multi-phase completion skip
 
 ## Host
 
@@ -12,12 +12,12 @@ Required host prerequisites: Codex CLI, `jq`, a POSIX shell, a persisted Codex s
 
 ## Prompt
 
-Before declaring the fictional River Map migration complete, use Advisor to check whether the finished work meets its stated contract and what evidence would falsify that conclusion.
+Before declaring the fictional River Map migration complete, do not use Advisor for reassurance or final-diff review; use the independent final-review workflow instead.
 
 ## Expected outcome
 
-Advisor emits a completion `ADVISOR DECISION` with `route: consult`, then `ADVISOR CALL` and a verified `ADVISOR RESULT`. The consultation asks about the stated contract and falsifying evidence; it does not replace final review or root acceptance.
+Advisor emits only `ADVISOR DECISION` with `route: skip`; it emits no `ADVISOR CALL` or `ADVISOR RESULT` receipt.
 
 ## Why this is the expected outcome
 
-Complex work that already consulted, or spans multiple phases or files, takes one completion consultation before completion is declared.
+Completion, reassurance, and final-diff-review requests are skipped because final review is owned by a separate workflow.

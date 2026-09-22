@@ -39,12 +39,11 @@ generate_receipt() {
     if (($runtime.parent_thread_id | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") | not)) then error("parent thread id must be a lowercase UUID") else . end |
     if ($runtime.thread_id == $runtime.parent_thread_id) then error("thread ids must differ") else . end |
     if ($runtime.transport != "codex-exec") then error("transport mismatch") else . end |
-    if ($runtime.effort != "high") then error("effort mismatch") else . end |
+    if ($runtime.effort != "low") then error("effort mismatch") else . end |
     if ($runtime.sandbox_policy_type != "read-only") then error("sandbox mismatch") else . end |
     if (($runtime.permission_profile_type | type) != "string" or ($runtime.permission_profile_type | length) == 0) then error("permission profile missing") else . end |
     if ($runtime.permission_profile_type != "managed") then error("permission profile mismatch") else . end |
-    if (($runtime.agent_role == "advisor-terra" and $runtime.model == "gpt-5.6-terra") or
-        ($runtime.agent_role == "advisor-sol" and $runtime.model == "gpt-5.6-sol")) | not then
+    if (($runtime.agent_role == "advisor-astra" and $runtime.model == "gpt-6-astra")) | not then
       error("wrong role/model pair")
     else . end |
     {
@@ -70,9 +69,8 @@ receipt_matches_contract() {
       "transport"
     ] and
     ($r.transport == "codex-exec") and
-    ((($r.agent_role == "advisor-terra" and $r.model == "gpt-5.6-terra") or
-      ($r.agent_role == "advisor-sol" and $r.model == "gpt-5.6-sol"))) and
-    ($r.effort == "high") and
+    (($r.agent_role == "advisor-astra" and $r.model == "gpt-6-astra")) and
+    ($r.effort == "low") and
     ($r.sandbox_policy_type == "read-only") and
     ($r.permission_profile_type == "managed")
   ' "$1" >/dev/null
@@ -105,7 +103,7 @@ write_observed_runtime() {
     --arg agent_role "$agent_role" \
     --arg transport "codex-exec" \
     --arg model "$model" \
-    --arg effort "high" \
+    --arg effort "low" \
     --arg sandbox "$sandbox" \
     --arg permission_profile_type "$permission_profile_type" \
     '{thread_id:$thread_id,parent_thread_id:$parent_thread_id,agent_role:$agent_role,transport:$transport,model:$model,effort:"high",sandbox_policy_type:$sandbox,permission_profile_type:$permission_profile_type}' \
@@ -129,8 +127,8 @@ synthetic() {
     "$observed" \
     '11111111-1111-1111-1111-111111111111' \
     '22222222-2222-2222-2222-222222222222' \
-    'advisor-terra' \
-    'gpt-5.6-terra' \
+    'advisor-astra' \
+    'gpt-6-astra' \
     'read-only' \
     'managed' || fail "cannot create synthetic runtime evidence"
   generate_receipt "$observed" "$receipt" || fail "cannot generate synthetic receipt"
@@ -141,8 +139,8 @@ synthetic() {
     "$wrong" \
     '11111111-1111-1111-1111-111111111111' \
     '22222222-2222-2222-2222-222222222222' \
-    'advisor-terra' \
-    'gpt-5.6-sol' \
+    'advisor-astra' \
+    'gpt-5.6-terra' \
     'read-only' \
     'managed' || fail "cannot create synthetic wrong runtime evidence"
   if generate_receipt "$wrong" "$mutated" 2>/dev/null; then
@@ -153,8 +151,8 @@ synthetic() {
     "$wrong" \
     '11111111-1111-1111-1111-111111111111' \
     '22222222-2222-2222-2222-222222222222' \
-    'advisor-sol' \
-    'gpt-5.6-terra' \
+    'advisor-terra' \
+    'gpt-6-astra' \
     'read-only' \
     'managed' || fail "cannot create synthetic wrong-role runtime evidence"
   if generate_receipt "$wrong" "$mutated" 2>/dev/null; then
@@ -165,8 +163,8 @@ synthetic() {
     "$same_ids" \
     '11111111-1111-1111-1111-111111111111' \
     '11111111-1111-1111-1111-111111111111' \
-    'advisor-terra' \
-    'gpt-5.6-terra' \
+    'advisor-astra' \
+    'gpt-6-astra' \
     'read-only' \
     'managed' || fail "cannot create synthetic same-thread runtime evidence"
   if generate_receipt "$same_ids" "$mutated" 2>/dev/null; then
@@ -177,8 +175,8 @@ synthetic() {
     "$wrong" \
     '11111111-1111-1111-1111-111111111111' \
     '22222222-2222-2222-2222-222222222222' \
-    'advisor-terra' \
-    'gpt-5.6-terra' \
+    'advisor-astra' \
+    'gpt-6-astra' \
     'workspace-write' \
     'managed' || fail "cannot create synthetic non-read-only runtime evidence"
   if generate_receipt "$wrong" "$mutated" 2>/dev/null; then
@@ -189,8 +187,8 @@ synthetic() {
     "$observed" \
     '11111111-1111-1111-1111-111111111111' \
     '22222222-2222-2222-2222-222222222222' \
-    'advisor-sol' \
-    'gpt-5.6-sol' \
+    'advisor-astra' \
+    'gpt-6-astra' \
     'read-only' \
     'managed' || fail "cannot create synthetic solver runtime evidence"
   generate_receipt "$observed" "$receipt" || fail "cannot generate synthetic solver receipt"
@@ -198,10 +196,10 @@ synthetic() {
   if ! receipt_matches_contract "$receipt"; then
     fail "synthetic advisor-sol receipt does not satisfy the parent predicate"
   fi
-  if jq -e 'if .agent_role == "advisor-sol" then true else false end' "$receipt" >/dev/null; then
-    pass "synthetic clean-host predicate accepts advisor-sol role"
+  if jq -e 'if .agent_role == "advisor-astra" then true else false end' "$receipt" >/dev/null; then
+    pass "synthetic clean-host predicate accepts advisor-astra role"
   else
-    fail "synthetic advisor-sol receipt role was not preserved"
+    fail "synthetic advisor-astra receipt role was not preserved"
   fi
 
   jq -e 'del(.agent_role)' "$receipt" > "$mutated" || fail "cannot mutate synthetic receipt"

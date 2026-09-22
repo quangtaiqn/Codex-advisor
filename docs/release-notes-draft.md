@@ -2,15 +2,13 @@
 
 ## Advisor 1.4.5 candidate
 
-Version `1.4.5` expands Specialist eligibility to evidence-unresolved complex
-decisions while keeping the models unchanged: Standard remains Terra/high for ordinary bounded material architecture,
-interface, data-model, and generic-advisor decisions. Specialist remains Sol/high
-when targeted evidence still leaves a cross-module/system design, compatibility or
-concurrency boundary, competing diagnosis, security/trust boundary, recovery,
-irreversible migration, or data-loss decision unresolved. Project importance,
-security adjacency, or an ordinary architecture question alone remains Standard.
-Explicit-only Astra is unchanged. The optional content-free journal remains disabled
-by default, with no schema or retention change.
+Version `1.4.5` migrates active consultation routing to one fixed Astra policy:
+`gpt-6-astra` starts at low effort and may move only through verified adjacent
+levels (`medium`, `high`, then `extra_high`/runtime `xhigh`). Legacy Terra/Sol names
+remain diagnostic compatibility aliases only. Each checkpoint level is one pass with
+no corrective retry, and completion/reassurance checks remain outside consultation.
+The optional content-free journal remains disabled by default, with no schema or
+retention change.
 
 This is a local candidate only. No archive, final SHA-256, commit, tag, upload,
 publication, deployment, or marketplace action is claimed.

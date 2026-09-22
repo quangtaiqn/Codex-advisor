@@ -18,27 +18,22 @@ out of scope.
 
 ## Selection and discovery contract
 
-New transports select `--tier standard|specialist` and resolve exactly one immutable
-launch record from the bundled live `advisor.toml`. It contains exactly `[standard]`
-and `[specialist]`, each with model and effort, and its SHA-256 content digest is the
-source revision. An edit applies to the next consultation without state, discovery,
-catalog registration, canary, or copying. Future syntactically valid selectors are
-permitted subject to account/runtime support; Specialist Astra is higher usage. A
-retry reuses the frozen record and never migrates, falls back, or automatically selects
-a newer model. Plugin updates or reinstall may replace edits. Legacy `--role
-advisor-terra` and `--role advisor-sol` remain fixed Terra/high and Sol/high routes
-and do not follow the live file. The explicit `--role advisor-astra` alias is a separate
-opt-in fixed `gpt-6-astra` / high route; it is never selected by either tier, trigger
-selection, or fallback. Its content-free journal tier is `opt-in`, and audit role
-aggregates include `advisor-astra`, while `consultations.selected_roles` remains
-exactly `{standard, specialist}`. Explicit model
-refresh starts an owned `codex app-server --ignore-user-config --ignore-rules`
+New transports select `--level low|medium|high|extra_high` and resolve exactly one
+immutable launch record from the bundled live `advisor.toml`. It contains one fixed
+`[advisor]` policy and the ordered ladder `[low, medium, high, xhigh]`; the SHA-256
+content digest is the source revision. Low is the only direct entry, while a higher
+level requires an explicit verified adjacent escalation from the same checkpoint.
+Each level is one pass: it never migrates, falls back, retries at the same level, or
+automatically selects a newer model. A durable ledger reserves the level before child
+launch and fails closed after interruption. Legacy `--tier`/`--role` names are
+compatibility aliases that normalize to `gpt-6-astra` / low and cannot follow an old
+model selector. Explicit model refresh starts an owned `codex app-server --ignore-user-config --ignore-rules`
 process with the existing Codex home and requests only initialize, initialized, and
 paginated `model/list` with `includeHidden: true`; it neither reads/copies auth nor
-starts inference. Terra/high for Standard and Sol/high for Specialist are the validated
-shipped defaults and may be attempted with no state, discovery, or canary. This is
-launch permission only, never compatibility proof; each actual child still passes the
-existing exact runtime identity, effort, read-only, zero-tool, and response checks.
+starts inference. Terra/Sol catalog entries are historical diagnostics only and may
+not be attempted by active routing. This is launch permission only, never compatibility
+proof; each actual child still passes the exact runtime identity, effort, read-only,
+zero-tool, and response checks.
 The catalog records `codex-cli 0.153.2` as tested provenance only. If the installed
 app-server lacks either isolation flag, discovery returns unavailable without launching
 or changing saved state; discovery never blocks the built-in defaults. The observed
@@ -49,16 +44,16 @@ than entitlement; advanced presets require an explicit successful exact
 model/effort/transport compatibility record but cannot override normal tiers.
 `models test MODEL --effort EFFORT
 --authorize-usage` runs only a fixed synthetic packet through the same transport,
-allows at most one response-only retry, records the actual local CLI version as
-provenance plus the transport contract, and never changes a selection. CLI updates
-alone never invalidate built-in defaults or existing custom/preset evidence.
+allows one response-only canary pass, records the actual local CLI version as
+provenance plus the transport contract, and never changes the active policy. CLI
+updates alone never invalidate legacy diagnostic evidence.
 
 ## Outcome
 
-When a Codex task contains a material design or diagnostic decision, implicit
-skill matching causes the root to consult exactly one fresh advisor selected from
-the decision-risk policy
-before the decision is finalized. Routine work does not spawn an advisor.
+When a Codex task contains a material design or diagnostic decision during approved
+plan execution, implicit skill matching gives the root at most one fresh Astra
+opportunity at that checkpoint before implementation begins. Routine work does not
+spawn an advisor.
 
 The root owns the task, chooses whether advice is accepted, and records the
 disposition. The root supplies enough evidence for the advisor to recommend a path;
@@ -66,6 +61,9 @@ when that is not possible, a valid result identifies a concrete research-first n
 step, missing evidence, research questions, or bounded brainstorming areas. Any
 later implementation continues through the repository's normal workflow, including
 Switchyard where applicable.
+
+Completion, reassurance, and final-diff-review requests do not create an automatic
+advisor consultation; final quality review remains an independent workflow.
 
 ## Trigger contract
 
@@ -84,11 +82,6 @@ Consult once per decision when at least one condition is true:
    irreversible-state behavior.
 5. The user explicitly asks for an advisor, challenge, second opinion, or
    architecture review.
-6. Complex work is about to be declared complete. This completion consultation
-   applies when the task already consulted, or when it spans multiple phases,
-   files, or sessions. Its decision question is whether the finished work meets
-   its stated contract and what evidence would falsify that. It is not the final
-   diff review of skip condition 4, which stays with its existing owner.
 
 Skip when every applicable condition is routine:
 
@@ -134,22 +127,17 @@ ordinary `route: skip` path remains unchanged.
    when it returns `status: available` with a recognized sandbox policy; otherwise
    emit the required unavailable decision and do not invoke the transport.
 2. Verify the installed plugin includes `run-advisor.sh` and both runtime inspectors.
-3. Select the tier from decision risk. Standard consultation uses
-   `--tier standard`, defaulting to GPT-5.6 Terra / high, for ordinary bounded
-   material architecture, interface, data-model, and generic advisor requests.
-   Specialist consultation uses `--tier specialist`, defaulting to GPT-5.6 Sol / high,
-   only when targeted evidence still leaves unresolved a cross-module or system design,
-   compatibility or concurrency boundary, competing diagnosis, security or trust
-   boundary, recovery, irreversible migration or data-loss decision, or credible
-   unresolved High-severity disagreement. Security adjacency, project importance,
-   and an ordinary architecture question alone do not qualify; a borderline role
-   choice uses Terra. Parent model is irrelevant.
+3. Start every eligible checkpoint at Astra `low` with `--level low`. Only the
+   typed immediate-next-level escalation may authorize `medium`, then `high`, then
+   `extra_high` (`xhigh` at the runtime boundary). A checkpoint gets one opportunity;
+   routine, settled, implementation-started, completion/reassurance, and
+   no-delegation work is skipped. Parent model is irrelevant.
 4. Immediately before transport invocation, emit a visible `ADVISOR CALL` receipt containing
-   the selected tier and role, task-specific reason, bounded question, and
+   the selected level and role, task-specific reason, bounded question, and
    `status: running`.
 5. Invoke the fixed installed-plugin `run-advisor.sh` exactly once through the shell
    tool's `sandbox_permissions: require_escalated` boundary with the selected exact
-   tier and the packet on stdin. Do not first attempt it inside the parent
+   level and the packet on stdin. Do not first attempt it inside the parent
    sandbox, where nested Codex app-server initialization is blocked. The elevation
    applies only to the fixed launcher; the child remains forced read-only and
    runtime-inspected. Resolve the absolute installed plugin root from the loaded skill
@@ -159,8 +147,8 @@ ordinary `route: skip` path remains unchanged.
    effort override. The wrapper resolves the live-file model and effort once, forces
    `--sandbox read-only`, starts a distinct persisted Codex exec
    thread, and uses existing Codex authentication without reading or copying secrets.
-   The single wrapper invocation may launch exactly one additional fresh child only
-   under the response-retry rule below; the root does not launch a replacement itself.
+   The wrapper launches at most one child for the reserved level; the root does not
+   launch a replacement or same-level retry.
    Deliver the packet only through a single-quoted heredoc whose delimiter is absent
    from the packet. Never use a workspace-writable packet file, unquoted heredoc,
    `eval`, or shell-interpolated packet text. Store all transport files beneath the
@@ -178,9 +166,7 @@ ordinary `route: skip` path remains unchanged.
    allowlisted `codex_exec` or `Codex Desktop` provenance, the exact frozen model and effort, a thread distinct from the parent,
    read-only isolation, and zero-tool behavior. The installed JSON Schema is the sole supported wrapper model-output contract. Direct/native role invocation is unsupported and is not schema-validated. Wrapper-owned semantic validation rejects
    invalid JSON and duplicate, missing, extra, wrong-type, noncontiguous-array, or
-   blank fields. It deterministically renders an accepted object as the canonical eight-line `ADVISOR RESPONSE` receipt. Exactly one fresh corrective retry is
-   allowed only after a runtime-valid response-validation failure; stderr and the retry prompt expose only its redacted failure `class` and
-   `field`, never rejected content. A consultation launches at most two children.
+   blank fields. It deterministically renders an accepted object as the canonical eight-line `ADVISOR RESPONSE` receipt. The typed escalation object may request only the immediate next level. A schema or response-validation failure is terminal: there is no corrective retry, second child, or retry prompt.
    Packet, launcher, event, identity, same-session, runtime, wrong-model, wrong-effort,
    non-read-only, normalization, provenance, or tool-use failure is terminal and never
    retries. A second response-validation failure is unavailable. Every attempt artifact
@@ -198,7 +184,7 @@ ordinary `route: skip` path remains unchanged.
    concrete `FOLLOW-UP AREAS` entry. The root checks its cited source references and
    records `accept`, `modify`, or `reject` with one reason.
 9. After runtime evidence and advice processing, always emit a visible
-   `ADVISOR RESULT` receipt containing completed/unavailable status, tier,
+    `ADVISOR RESULT` receipt containing completed/unavailable status, level,
    verified model and effort, read-only isolation, a concise recommendation
    or unavailable, the accept/modify/reject/blocked disposition, and one-sentence
    reason.
@@ -209,8 +195,8 @@ ordinary `route: skip` path remains unchanged.
     does not rescue or alter the original result; an unavailable result cannot be
     rescued by follow-up work. The advisor may not spawn or conduct that work.
 11. Do not independently start a replacement or second advisor, implementer, or final
-    reviewer as part of this skill. The only permitted second child is the wrapper-owned
-    retry in step 7.
+    reviewer as part of this skill. Higher levels are new adjacent passes only after
+    a verified escalation and ledger authorization.
 
 If the exact completed transport evidence is unavailable, report `advisor unavailable`,
 block the consult route, and never continue independently or silently substitute
@@ -230,7 +216,7 @@ receipt and no transport invocation.
 
 ```text
 ADVISOR CALL
-tier: Standard | Specialist
+level: low | medium | high | extra_high
 model: <resolved model selector>
 effort: <resolved effort>
 reason: <one task-specific sentence>
@@ -241,7 +227,7 @@ status: running
 ```text
 ADVISOR RESULT
 status: completed | unavailable
-tier: Standard | Specialist
+level: low | medium | high | extra_high
 model: <verified resolved model selector>
 effort: <verified resolved effort>
 isolation: read-only
@@ -280,7 +266,10 @@ The model emits exactly one JSON object matching the installed
 `advisor-response.schema.json`, with no prose or code fences. It has six required
 nonblank scalar strings (`recommendation`, `why`, `strongest_objection`,
 `change_my_mind`, `risks`, `follow_up_areas`) and a required nonempty array of
-nonblank strings (`acceptance_checks`). The wrapper, not a direct/native role
+nonblank strings (`acceptance_checks`) plus a typed `escalation` object containing
+`next_level`, `reason`, `unresolved_difficulty`, and `required_resolution`.
+`next_level` is null or the immediate next ladder level; a non-null request requires
+all three explanation strings to be nonblank. The wrapper, not a direct/native role
 invocation, validates it and renders this exact eight-line receipt:
 
 ```text
@@ -324,6 +313,10 @@ it never implies that a technical choice was accepted when no technical choice w
 - Switchyard remains the implementation router; the plugin must not contain an
   implementation role or bypass repository routing policy.
 - The advisor is pre-decision consultation, not post-implementation review.
+- A checkpoint ledger reserves each level before launch and records completed, failed,
+  or uncertain outcomes. Restart/recovery never silently reopens a consumed level;
+  implementation-started locks the checkpoint. The optional usage journal is separate
+  and cannot clear the safety ledger.
 - No hooks, MCP server, connector, API key, network service, telemetry, or
   scheduled task is introduced.
 - `advisor-audit.sh` is a local read-only, aggregate-only inspection command. It
@@ -347,8 +340,8 @@ it never implies that a technical choice was accepted when no technical choice w
   establish selected role or completion; activity may be counted only by correlation
   to an exact current child ID.
   Unknown runtime evidence is unavailable, never inferred.
-- Installation may add only the exact `advisor-terra`, `advisor-sol`, and explicit opt-in
-  `advisor-astra` custom-agent TOMLs through a
+ - Installation may add only the exact compatibility filenames `advisor-terra`,
+   `advisor-sol`, and `advisor-astra` custom-agent TOMLs through a
   fail-closed, idempotent companion installer. An attended upgrade must also
   deactivate byte-exact known historical Sol Advisor role files by recoverably renaming
   implementation/review roles to `<role>.toml.retired-v0.6.0` and the historical
@@ -411,13 +404,14 @@ trigger retired behavior.
 The repository verifier must prove:
 
 1. Manifest JSON, marketplace JSON, TOML, YAML, and shell syntax are valid.
-2. The plugin exposes exactly one skill and ships exactly three model-pinned custom-agent roles,
-   with Astra present only as an explicit opt-in role and Standard/Specialist defaults unchanged.
+2. The plugin exposes exactly one skill and ships exactly three custom-agent role
+   filenames, all pinned to the active Astra/low compatibility route; the catalog may
+   retain Terra/Sol entries only as historical diagnostics.
 3. Implicit invocation is enabled and the skill description contains explicit
    consult and skip boundaries.
 4. Retired `solo`, `delegate`, `audit`, `full`, Luna, Terra, and final-review
    contracts are absent from active plugin content.
-5. The advisor roles pin the exact Terra/high, Sol/high, and opt-in Astra/high pairs, request read-only
+5. The advisor roles pin the exact Astra/low pair, request read-only
    sandboxing, and forbid tools, file inspection, web fetches, and independent
    research; static fixtures prove decision-risk role selection and exact spawn evidence.
 6. The installer is fail-closed, idempotent, supports an isolated target, and
@@ -458,8 +452,8 @@ Persisted-fixture pass criteria:
   exactly two more trials and its majority route becomes that schema's case result;
 - at least three of four boundary cases choose the expected route after that
   bounded majority rule;
-- every consult case spawns exactly one selected `advisor-terra` or `advisor-sol`
-  role with fresh context and its pinned model;
+- every consult case selects `advisor-astra` with fresh context, fixed
+  `gpt-6-astra` model, and `low` effort at the first pass;
 - both `multi_agent_v2` feature states are covered without ever accepting a
   self-reported or inherited-context consultation as runtime evidence;
 - every skip case spawns none;
@@ -526,4 +520,13 @@ actions; a missing external review or runtime spawn evidence is unavailable, not
 approval to continue.
 # Usage and audit (1.4)
 
-The versioned wrapper envelope retains the canonical eight-line response and legacy runtime keys while adding an opaque consultation ID, frozen selection, per-attempt duration and available input/cached-input/output/reasoning counters. Cached input is a subset of input and reasoning is never added twice to output. Missing counters are null with explicit partial availability. The optional content-free local usage journal is disabled by default; `advisor-config.sh journal enable|disable|status|clear` controls owner-only, atomic 30-day receipts. Astra records preserve tier `opt-in`; Astra role sessions appear in child-session and parent-completion role aggregates but never in the Standard/Specialist `selected_roles` counts. The journal never stores prompts, answers, paths, child/session IDs, or raw errors. A journal failure is a redacted warning, not an advice failure.
+The versioned wrapper envelope retains the canonical eight-line response and legacy
+runtime keys while adding an opaque consultation ID, frozen Astra selection, active
+level, per-attempt duration, and available input/cached-input/output/reasoning
+counters. Cached input is a subset of input and reasoning is never added twice to
+output. Missing counters are null with explicit partial availability. The optional
+content-free local usage journal is disabled by default; `advisor-config.sh
+journal enable|disable|status|clear` controls owner-only, atomic 30-day receipts.
+Active records preserve the Astra policy level; historical tier/model labels remain
+diagnostic only. The journal never stores prompts, answers, paths, child/session IDs,
+or raw errors. A journal failure is a redacted warning, not an advice failure.

@@ -53,8 +53,7 @@
 
 <section aria-labelledby="configuration">
     <h2 id="configuration">3. Configure models</h2>
-    <p>Find <code>advisor.toml</code> in the installed plugin root. The plugin root is two directories above the directory containing <code>skills/consultation/SKILL.md</code>. Edit that bundled file in place; do not copy it and do not use repository commands. Changes apply to the next consultation, with independent settings for Standard and Specialist.</p>
-    <p>Automatic Standard remains Terra/high for ordinary bounded architecture, interface, data-model, and generic-advisor decisions. Automatic Specialist remains Sol/high only when targeted evidence still leaves an eligible cross-system, compatibility/concurrency, competing-diagnosis, security/trust, recovery, irreversible-migration, or data-loss decision unresolved. Project importance, security adjacency, or an ordinary architecture question alone stays Standard. <code>advisor-astra</code> is a separate explicit-only Astra/high role; it is never selected automatically. Invalid TOML and unsupported-model values produce an explicit error; Advisor does not silently fall back. An update or reinstall may replace edits to the bundled file. There is no GUI settings screen in the normal flow.</p>
+    <p>Find <code>advisor.toml</code> in the installed plugin root. The plugin root is two directories above the directory containing <code>skills/consultation/SKILL.md</code>. The active policy is a fixed Astra ladder: <code>low → medium → high → extra_high</code>, with <code>extra_high</code> mapped to runtime <code>xhigh</code>. Legacy role names are aliases only. Invalid TOML, unsupported levels, or missing escalation evidence produce an explicit error; Advisor does not silently fall back. An update or reinstall may replace the bundled file. There is no GUI settings screen in the normal flow.</p>
 </section>
 
 <section aria-labelledby="scope">
@@ -99,17 +98,17 @@ route: unavailable</code></pre>
     <h3>B. Model availability or authorization failure</h3>
     <p><strong>Symptom.</strong> The consultation launcher reports a failure or an unexpected model response.</p>
     <p><strong>Cause.</strong> The configured model is unavailable or unauthorized for your authenticated Codex/OpenAI account.</p>
-    <p><strong>Remedies.</strong> Check the <code>model</code> and <code>effort</code> values in the installed <code>advisor.toml</code>, verify account access and usage availability, and correct the file in place. An unsupported model or invalid TOML reports an error; there is no silent fallback.</p>
-    <p>For <code>advisor-astra</code>, also confirm that the request was explicit. Automatic Standard and Specialist routing will not select Astra.</p>
+    <p><strong>Remedies.</strong> Check the fixed <code>model</code> and <code>effort_ladder</code> in the installed <code>advisor.toml</code>, verify account access and usage availability, and reconcile any pending checkpoint state. An unsupported model or invalid TOML reports an error; there is no silent fallback.</p>
+    <p><code>advisor-astra</code> is the active route; the legacy Standard/Specialist names and <code>advisor-terra</code>/<code>advisor-sol</code> aliases cannot select another model.</p>
 
-    <h3>C. Response classification retry</h3>
-    <p><strong>Symptom.</strong> Stderr shows a single retry during consultation.</p>
-    <p><strong>Behavior.</strong> This is by design. A runtime-valid first child whose response is empty or structurally malformed gets exactly one fresh retry. If the retry also fails, the plugin records <code>recommendation: unavailable</code> and <code>decision: blocked</code> and stops. Packet, launcher, identity, runtime, wrong-model, wrong-effort, and tool-use failures are terminal and never retry.</p>
+    <h3>C. Response validation stops the pass</h3>
+    <p><strong>Symptom.</strong> Stderr reports a response-validation failure.</p>
+    <p><strong>Behavior.</strong> This is fail-closed by design. The reserved level is consumed, the rejected content is redacted, and the plugin records <code>recommendation: unavailable</code> and <code>decision: blocked</code>. It does not launch a corrective retry or silently select another model/effort.</p>
 
     <h3>D. Deferred handoff returns no receipt</h3>
     <p><strong>Symptom.</strong> A long consultation appears to launch, but the enclosing call reports no validated result.</p>
     <p><strong>Behavior.</strong> A nonterminal shell <code>session_id</code> is progress, not a receipt. The caller drains that exact session with <code>write_stdin</code>, accumulates its output, requires terminal exit, and validates exactly one schema-v3 envelope before returning it. An outer wait or heartbeat is not terminal evidence.</p>
-    <p><strong>Recovery.</strong> Install an available update from the official OpenAI Plugins Directory, then start a new Codex thread and repeat the explicit request. This repair does not add model fallback; Standard, Specialist, and explicit-only Astra retain their documented routing.</p>
+    <p><strong>Recovery.</strong> Install an available update from the official OpenAI Plugins Directory, then start a new Codex thread and repeat the explicit request. A new attempt begins at Astra low only after the checkpoint ledger is reconciled; it does not replay a consumed level or add model fallback.</p>
 </section>
 
 <section aria-labelledby="diagnostics">

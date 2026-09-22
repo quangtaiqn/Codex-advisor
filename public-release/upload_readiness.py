@@ -34,7 +34,7 @@ SITE_FILES = (
 )
 _DRAFT = re.compile(r"\b(?:TODO|TBD|FIXME|PLACEHOLDER|CHANGEME|LOREM\s+IPSUM|INSERT(?:\s+TEXT)?|DRAFT)\b", re.I)
 _VERSION_FIELD = re.compile(r"^\|\s*\*\*Version\*\*\s*\|(?P<value>.*?)\|\s*$", re.M)
-_HEADING = re.compile(r"^ {0,3}(?P<marks>#{1,6})[ \t]+(?P<name>.*?)[ \t]*#*[ \t]*$", re.M)
+_HEADING = re.compile(r"^ {0,3}(?P<marks>#{1,6})[ \t]+(?P<name>.*?)[ \t]*#*[ \t]*\r?$", re.M)
 
 
 class ReadinessError(RuntimeError):

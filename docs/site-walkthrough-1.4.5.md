@@ -17,21 +17,20 @@ Owner review is required before deployment.
 ## Landing — `/advisor/`
 
 - The candidate badge reads `Open source · Candidate documentation v1.4.5`.
-- Standard is described as Terra/high for ordinary bounded material architecture,
-  interface, data-model, and generic-advisor decisions.
-- Specialist is described as Sol/high only when targeted evidence still leaves an
-  eligible cross-system, compatibility/concurrency, competing-diagnosis,
-  security/trust, recovery, irreversible-migration, or data-loss decision unresolved.
-- Project importance, security adjacency, and an ordinary architecture question alone
-  remain Standard. `advisor-astra` remains explicit-only and never automatic.
+- Active consultation is described as Astra/low first, with verified adjacent
+  escalation through medium, high, and extra_high (`xhigh` at runtime).
+- Legacy Terra/Sol role names are described as compatibility aliases only and never
+  select the historical models.
+- Routine, settled, implementation-started, completion, reassurance, and
+  no-delegation work skips consultation; final review remains separate.
 - The install CTA and source link remain visible; the deferred-handoff explanation and
   no-fallback promise remain visible.
 
 ## Support — `/advisor/support/`
 
 - The page gives Directory update/reinstall guidance and the new-Codex-thread handoff.
-- It explains the installed `advisor.toml` location, in-place configuration, no GUI
-  settings screen, no silent fallback, and the revised Standard/Specialist routing.
+- It explains the installed `advisor.toml` location, the fixed Astra ladder, no GUI
+  settings screen, no silent fallback, and the checkpoint resume rules.
 - It exposes prerequisites, unavailable-route recovery, receipt diagnostics, and
   ticket-submission guidance.
 

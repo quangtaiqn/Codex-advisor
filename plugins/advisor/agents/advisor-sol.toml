@@ -1,7 +1,7 @@
 name = "advisor-sol"
-description = "Specialist fresh, read-only advisor for narrowly qualified unresolved critical decisions."
-model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
+description = "Deprecated compatibility alias for the active Astra low-first advisor."
+model = "gpt-6-astra"
+model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 
 developer_instructions = """

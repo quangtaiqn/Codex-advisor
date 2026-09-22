@@ -16,7 +16,7 @@ For the fictional Harbor Ledger service, should the new audit record live in the
 
 ## Expected outcome
 
-Advisor emits `ADVISOR DECISION` with `route: consult`, then an `ADVISOR CALL` using `advisor-terra`, followed by a verified `ADVISOR RESULT` for the bounded architecture decision.
+Advisor emits `ADVISOR DECISION` with `route: consult`, then an `ADVISOR CALL` using Astra at `low`, followed by a verified `ADVISOR RESULT` for the bounded architecture decision.
 
 ## Why this is the expected outcome
 

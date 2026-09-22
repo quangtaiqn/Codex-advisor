@@ -49,18 +49,21 @@ for file in "$manifest" "$marketplace" "$terra_role" "$sol_role" "$astra_role" "
 done
 [ "$(find "$plugin_dir/agents" -maxdepth 1 -type f -name '*.toml' | wc -l | tr -d ' ')" -eq 3 ] || fail "expected exactly three active roles"
 [ "$(find "$plugin_dir/skills" -type f -name SKILL.md | wc -l | tr -d ' ')" -eq 1 ] || fail "expected exactly one skill"
-pass "required inventory: one skill, three model pins including explicit opt-in Astra, read-only transport, parent/child inspectors, evaluator, documentation"
+pass "required inventory: one skill, three compatibility role filenames normalized to Astra/low, read-only transport, parent/child inspectors, evaluator, documentation"
 
 jq -e '
   .type == "object" and .additionalProperties == false and
-  .required == ["recommendation", "why", "strongest_objection", "change_my_mind", "acceptance_checks", "risks", "follow_up_areas"] and
-  (.properties | keys | sort) == (["recommendation", "why", "strongest_objection", "change_my_mind", "acceptance_checks", "risks", "follow_up_areas"] | sort) and
+  .required == ["recommendation", "why", "strongest_objection", "change_my_mind", "acceptance_checks", "risks", "follow_up_areas", "escalation"] and
+  (.properties | keys | sort) == (["recommendation", "why", "strongest_objection", "change_my_mind", "acceptance_checks", "risks", "follow_up_areas", "escalation"] | sort) and
   all(.properties.recommendation, .properties.why, .properties.strongest_objection, .properties.change_my_mind, .properties.risks, .properties.follow_up_areas; .type == "string") and
   .properties.acceptance_checks.type == "array" and .properties.acceptance_checks.minItems == 1 and
-  .properties.acceptance_checks.items == {"type":"string"}
+  .properties.acceptance_checks.items == {"type":"string"} and
+  .properties.escalation.type == "object" and .properties.escalation.additionalProperties == false and
+  .properties.escalation.required == ["next_level", "reason", "unresolved_difficulty", "required_resolution"] and
+  .properties.escalation.properties.next_level.enum == [null, "medium", "high", "extra_high"]
 ' "$response_schema" >/dev/null || fail "response schema contract mismatch"
 [ ! -L "$response_schema" ] || fail "response schema must not be a symlink"
-pass "strict seven-field response schema"
+pass "strict eight-field response schema with typed escalation"
 
 python3 - "$manifest" "$marketplace" "$terra_role" "$sol_role" "$astra_role" "$fixtures" "$ui" "$models" "$live_config" <<'PY'
 import json, re, sys, tomllib
@@ -85,15 +88,19 @@ if {key: interface.get(key) for key in ("websiteURL","privacyPolicyURL","termsOf
 if "Project importance, security adjacency, or an ordinary architecture question alone stays Standard." not in interface.get("longDescription",""): raise SystemExit("manifest routing caveat")
 if "supportURL" in interface: raise SystemExit("unsupported support URL field")
 if models.get("transport_contract_version")!="1.4" or models.get("tested_codex_cli")!="codex-cli 0.153.2": raise SystemExit("model transport provenance")
-if models.get("defaults")!={"standard":{"model":"gpt-5.6-terra","effort":"high"},"specialist":{"model":"gpt-5.6-sol","effort":"high"}}: raise SystemExit("model defaults")
-if live != {"standard":{"model":"gpt-5.6-terra","effort":"high"},"specialist":{"model":"gpt-5.6-sol","effort":"high"}}: raise SystemExit("live config defaults")
+if models.get("defaults")!={"standard":{"model":"gpt-6-astra","effort":"low"},"specialist":{"model":"gpt-6-astra","effort":"low"}}: raise SystemExit("model defaults")
+if live != {"advisor":{"model":"gpt-6-astra","effort_ladder":["low","medium","high","xhigh"]}}: raise SystemExit("live config defaults")
 if any("codex_cli_version_pattern" in (item.get("compatibility_baseline") or {}) for item in models.get("models", [])): raise SystemExit("CLI version eligibility pin")
 if {item.get("model") for item in models.get("models",[])} != {"gpt-5.6-terra","gpt-5.6-sol","gpt-6-astra"}: raise SystemExit("model catalog inventory")
+catalog={item.get("model"):item for item in models.get("models",[])}
+if any(catalog[name].get("tiers") or catalog[name].get("compatibility_baseline") is not None for name in ("gpt-5.6-terra","gpt-5.6-sol")): raise SystemExit("legacy models remain active")
+if catalog["gpt-6-astra"].get("tiers") != ["standard","specialist"]: raise SystemExit("Astra tiers")
+if catalog["gpt-6-astra"].get("compatibility_baseline",{}).get("efforts") != ["low","medium","high","xhigh"]: raise SystemExit("Astra effort ladder")
 entry=market.get("plugins",[])
 if market.get("name")!="advisor" or market.get("interface",{}).get("displayName")!="Codex Advisor": raise SystemExit("marketplace identity")
 if len(entry)!=1 or entry[0].get("name")!="advisor" or entry[0].get("source")!={"source":"local","path":"./plugins/advisor"}: raise SystemExit("marketplace source")
 if entry[0].get("policy")!={"installation":"AVAILABLE","authentication":"ON_INSTALL"} or not entry[0].get("category"): raise SystemExit("marketplace policy")
-pairs=((terra,{"name":"advisor-terra","description":"Standard fresh, read-only advisor for material technical decisions and generic advisor requests.","model":"gpt-5.6-terra","model_reasoning_effort":"high","sandbox_mode":"read-only"}),(sol,{"name":"advisor-sol","description":"Specialist fresh, read-only advisor for narrowly qualified unresolved critical decisions.","model":"gpt-5.6-sol","model_reasoning_effort":"high","sandbox_mode":"read-only"}),(astra,{"name":"advisor-astra","description":"Explicit opt-in, fresh, read-only advisor for higher-usage technical consultations.","model":"gpt-6-astra","model_reasoning_effort":"high","sandbox_mode":"read-only"}))
+pairs=((terra,{"name":"advisor-terra","description":"Deprecated compatibility alias for the active Astra low-first advisor.","model":"gpt-6-astra","model_reasoning_effort":"low","sandbox_mode":"read-only"}),(sol,{"name":"advisor-sol","description":"Deprecated compatibility alias for the active Astra low-first advisor.","model":"gpt-6-astra","model_reasoning_effort":"low","sandbox_mode":"read-only"}),(astra,{"name":"advisor-astra","description":"Active fresh, read-only advisor; escalation is Astra low -> medium -> high -> extra_high.","model":"gpt-6-astra","model_reasoning_effort":"low","sandbox_mode":"read-only"}))
 for role,pins in pairs:
     if any(role.get(k)!=v for k,v in pins.items()): raise SystemExit("role pins")
     if not all(isinstance(role.get(k),str) and role[k].strip() for k in ("description","developer_instructions")): raise SystemExit("role text")
@@ -130,8 +137,8 @@ for document in "$skill" "$operations" "$repo_dir/SPEC.md"; do
   done
 done
 for phrase in 'ADVISOR DECISION' 'route: consult | skip | unavailable' 'inspect-parent-runtime.sh' 'CODEX_THREAD_ID' 'CODEX_SESSION_ID' 'run-advisor.sh' \
-  '--role advisor-terra' '--role advisor-sol' 'actual resolved model and effort metadata' \
-  'Standard consultation' 'Specialist consultation' 'generic advisor requests' \
+  '--role advisor-terra' '--role advisor-sol' '--level low' '--checkpoint-key' 'actual resolved model and effort metadata' \
+  'Astra low-first' 'medium' 'high' 'extra_high' 'xhigh' 'generic advisor requests' \
   'unresolved security or trust boundary' 'irreversible migration or data-loss decision' \
   'credible unresolved High-severity disagreement' 'Security adjacency or project importance alone' \
   'borderline choice uses Standard' 'parent model and sandbox are irrelevant' \
@@ -139,7 +146,7 @@ for phrase in 'ADVISOR DECISION' 'route: consult | skip | unavailable' 'inspect-
   'ADVISOR RESPONSE' 'RECOMMENDATION:' 'WHY:' 'STRONGEST OBJECTION:' 'CHANGE MY MIND:' \
   'ACCEPTANCE CHECKS:' 'RISKS:' 'FOLLOW-UP AREAS:' 'research-first' 'accept' 'modify' 'reject' 'advisor unavailable' \
   'ADVISOR CALL' 'status: running' 'ADVISOR RESULT' 'status: completed | unavailable' \
-  'tier: Standard | Specialist' 'model: <resolved model selector>' \
+  'level: low | medium | high | extra_high' 'model: <resolved model selector>' \
   'model: <verified resolved model selector>' 'effort: <verified resolved effort>' \
   'isolation: read-only' 'recommendation: <concise recommendation, or unavailable>' \
   'decision: accept | modify | reject | blocked' 'recommendation: unavailable' \
@@ -147,7 +154,7 @@ for phrase in 'ADVISOR DECISION' 'route: consult | skip | unavailable' 'inspect-
   'Before consultation, the root performs any repository or web research' \
   'relevant evidence and source references' 'enough relevant evidence' \
   'Use zero tools: do not inspect files, call tools, fetch' 'research-first next step' \
-  'specific missing evidence' 'FOLLOW-UP AREAS' 'outside this consultation' \
+  'specific missing evidence' 'FOLLOW-UP AREAS' 'outside this consultation' 'one pass' 'no same-effort response retry' \
   'unavailable result cannot be rescued' 'accepts the returned technical recommendation or' \
   'research-first plan, never a technical choice' \
   'sandbox_permissions: require_escalated' 'Do not first try' \
@@ -182,15 +189,12 @@ grep -Eq 'non-Codex.*route: unavailable' "$skill" || fail "non-Codex unavailable
 pass "non-Codex surfaces document the unavailable route"
 
 for document in "$skill" "$repo_dir/SPEC.md" "$operations"; do
-  grep -Fqi 'completion consultation' "$document" || fail "completion-consultation contract missing: $document"
+  grep -Fqi 'no automatic completion consultation' "$document" || fail "completion-skip contract missing: $document"
+  grep -Fqi 'final review' "$document" || fail "separate final-review boundary missing: $document"
 done
-# Gate the rule itself, not the frontmatter restatement of it: the description alone
-# must not be able to satisfy this check.
-grep -Fq 'Emit a second `ADVISOR DECISION`' "$skill" || fail "skill omits the completion-consultation rule"
-grep -Fq 'Complex work is about to be declared complete' "$repo_dir/SPEC.md" || fail "SPEC omits the completion trigger condition"
-grep -Fqi 'takes one completion consultation before it is declared complete' "$operations" || fail "operations omits the completion-consultation rule"
-if grep -Fqi 'completion consultation is a final diff review' "$skill"; then fail "completion consultation must not claim final review"; fi
-pass "complex work takes one completion consultation that never becomes final review"
+grep -Fq 'completion/reassurance' "$skill" || fail "skill omits completion/reassurance skip rule"
+grep -Fq 'completion, final diff review' "$operations" || fail "operations omits completion/final-review separation"
+pass "completion and reassurance consultations are skipped; final review remains separate"
 
 python3 - "$skill" "$operations" "$repo_dir/SPEC.md" "$repo_dir/INVARIANTS.md" <<'PY'
 import sys
@@ -264,11 +268,11 @@ for document in "$skill" "$operations" "$readme" "$repo_dir/SPEC.md" "$repo_dir/
   grep -Fqi 'wrapper-owned semantic validation' "$document" || fail "wrapper semantic-validation contract missing: $document"
   grep -Fqi 'canonical eight-line' "$document" || fail "canonical renderer contract missing: $document"
   grep -Fqi 'redacted failure' "$document" || fail "redacted failure diagnostic contract missing: $document"
-  grep -Fqi 'at most two children' "$document" || fail "two-child retry bound missing: $document"
+  grep -Eqi 'at most one child|no second child' "$document" || fail "one-child bound missing: $document"
   grep -Fqi 'direct/native role invocation is unsupported' "$document" || fail "unsupported direct/native invocation contract missing: $document"
 done
 for document in "$skill" "$operations" "$repo_dir/SPEC.md" "$repo_dir/INVARIANTS.md"; do
-  grep -Fqi 'runtime-valid response-validation failure' "$document" || fail "runtime-gated retry contract missing: $document"
+  grep -Fqi 'response-validation failure' "$document" || fail "response-validation contract missing: $document"
   grep -Fqi 'terminal' "$document" || fail "terminal runtime failure contract missing: $document"
   grep -Fqi 'rejected content' "$document" || fail "rejected-content redaction contract missing: $document"
   grep -Fqi 'mode-0700 consultation directory' "$document" || fail "private consultation directory contract missing: $document"
@@ -282,7 +286,7 @@ done
 grep -Fqi 'read-only' "$manifest" || fail "listing omits read-only boundary"
 grep -Fqi 'tool-free' "$manifest" || fail "listing omits tool-free boundary"
 grep -Fqi 'does not implement' "$manifest" || fail "listing omits implementation boundary"
-pass "JSON schema, semantic validation, renderer, retry, privacy, cleanup, and unsupported-native documentation parity"
+pass "JSON schema, semantic validation, renderer, one-pass privacy, cleanup, and unsupported-native documentation parity"
 grep -Fqi 'accepting that plan' "$operations" || fail "research-first disposition semantics missing"
 grep -Fqi '.retired-v1.3.0-zero-tool' "$operations" || fail "1.3.0 zero-tool retirement documentation missing"
 grep -Fq 'substitute another model' "$skill" || fail "no-substitution rule missing"
@@ -334,7 +338,7 @@ for filename in sys.argv[1:]:
 print("deferred handoff contract ordering valid")
 PY
 pass "deferred exec results are drained with write_stdin and one final envelope is parsed after terminal exit"
-for phrase in 'codex exec --json --ignore-user-config --ignore-rules' '--sandbox read-only --model "$model"' 'model_reasoning_effort="high"' '--skip-git-repo-check' '--output-schema "$response_schema"' '--output-last-message' 'ADVISOR TRANSPORT:' '--expected-parent "$parent_thread_id"' 'jq --stream' 'consultation reused the parent thread' 'response validation failed' 'advisor response was not verified'; do
+for phrase in 'codex exec --json --ignore-user-config --ignore-rules' '--sandbox read-only --model "$model"' 'model_reasoning_effort="$effort"' '--skip-git-repo-check' '--output-schema "$response_schema"' '--output-last-message' 'ADVISOR TRANSPORT:' '--expected-parent "$parent_thread_id"' 'jq --stream' 'consultation reused the parent thread' 'response validation failed' 'advisor response was not verified'; do
   grep -Fq -- "$phrase" "$transport" || fail "transport contract omits: $phrase"
 done
 if grep -Eq 'response_is_well_formed|Normalize only trailing ASCII|original candidate remains untouched' "$transport"; then fail "retired line response parser remains"; fi
@@ -392,8 +396,12 @@ from pathlib import Path
 import sys
 terra,sol,target=map(Path,sys.argv[1:])
 replacements={
-    terra:("Standard fresh, read-only advisor for material technical decisions and generic advisor requests.","Fresh, read-only GPT-5.6 Terra advisor for Luna, Spark, and lower-capability parents."),
-    sol:("Specialist fresh, read-only advisor for narrowly qualified unresolved critical decisions.","Fresh, read-only GPT-5.6 Sol advisor for Terra, Sol, and unknown parents."),
+    terra:("Deprecated compatibility alias for the active Astra low-first advisor.","Fresh, read-only GPT-5.6 Terra advisor for Luna, Spark, and lower-capability parents."),
+    sol:("Deprecated compatibility alias for the active Astra low-first advisor.","Fresh, read-only GPT-5.6 Sol advisor for Terra, Sol, and unknown parents."),
+}
+legacy_model_headers={
+    terra:("gpt-5.6-terra", "high"),
+    sol:("gpt-5.6-sol", "high"),
 }
 zero_tool_block='''
 Use zero tools. Do not call any tool or function, inspect files or repositories,
@@ -412,7 +420,12 @@ for source,(new,old) in replacements.items():
     if text.count(new)!=1: raise SystemExit(f"current role description fixture mismatch: {source}")
     if text.count(zero_tool_block)!=1: raise SystemExit(f"current role zero-tool fixture mismatch: {source}")
     if text.count(follow_up_output)!=1: raise SystemExit(f"current role follow-up fixture mismatch: {source}")
-    prior=text.replace(new,old).replace(zero_tool_block,"").replace(follow_up_output,"")
+    role_key="terra" if source == terra else "sol"
+    legacy_model,legacy_effort=legacy_model_headers[role_key]
+    prior=text.replace(new,old).replace(
+        'model = "gpt-6-astra"\nmodel_reasoning_effort = "low"',
+        f'model = "{legacy_model}"\nmodel_reasoning_effort = "{legacy_effort}"',
+    ).replace(zero_tool_block,"").replace(follow_up_output,"")
     prior=prior.replace("Do not spawn or route another agent", "Do not spawn another agent")
     target.joinpath(source.name).write_text(prior,encoding="utf-8")
 PY
@@ -470,7 +483,19 @@ for source in map(Path,sys.argv[1:3]):
     text=source.read_text(encoding="utf-8")
     if text.count(current_block)!=1: raise SystemExit(f"current role zero-tool fixture mismatch: {source}")
     if text.count(follow_up_output)!=1: raise SystemExit(f"current role follow-up fixture mismatch: {source}")
-    prior=text.replace(current_block,prior_block).replace(follow_up_output,"")
+    legacy_model='gpt-5.6-terra' if source.name == "advisor-terra.toml" else 'gpt-5.6-sol'
+    legacy_description=(
+        "Standard fresh, read-only advisor for material technical decisions and generic advisor requests."
+        if source.name == "advisor-terra.toml" else
+        "Specialist fresh, read-only advisor for narrowly qualified unresolved critical decisions."
+    )
+    prior=text.replace(
+        "Deprecated compatibility alias for the active Astra low-first advisor.",
+        legacy_description,
+    ).replace(
+        'model = "gpt-6-astra"\nmodel_reasoning_effort = "low"',
+        f'model = "{legacy_model}"\nmodel_reasoning_effort = "high"',
+    ).replace(current_block,prior_block).replace(follow_up_output,"")
     prior=prior.replace("Do not spawn or route another agent", "Do not spawn another agent")
     Path(sys.argv[3],source.name).write_text(prior,encoding="utf-8")
 PY
@@ -763,8 +788,8 @@ while [ "$#" -gt 0 ]; do
     *) exit 90 ;;
   esac
 done
-[ "$sandbox" = read-only ] && [ "$effort" = "model_reasoning_effort=\"${FAKE_EXPECTED_EFFORT:-high}\"" ] || exit 91
-[ "$model" = "${FAKE_EXPECTED_MODEL:-gpt-5.6-terra}" ] || exit 92
+[ "$sandbox" = read-only ] && [ "$effort" = "model_reasoning_effort=\"${FAKE_EXPECTED_EFFORT:-low}\"" ] || exit 91
+[ "$model" = "${FAKE_EXPECTED_MODEL:-gpt-6-astra}" ] || exit 92
 case "$schema" in */plugins/advisor/advisor-response.schema.json) ;; *) exit 93 ;; esac
 case "$output" in "$CODEX_HOME"/.tmp/advisor-transport/run.*/response.*.json) ;; *) exit 94 ;; esac
 case "$workdir" in "$CODEX_HOME"/.tmp/advisor-transport/run.*/workdir.*) ;; *) exit 95 ;; esac
@@ -794,7 +819,7 @@ case "${FAKE_CODEX_CASE-valid}:$attempt" in
 esac
 
 valid_response() {
-  printf '%s\n' '{"recommendation":"  neutral   path  ","why":"reason with\nspacing","strongest_objection":"objection","change_my_mind":"contrary evidence","acceptance_checks":["first check"," second   check "],"risks":"none","follow_up_areas":"none"}' >"$output"
+  printf '%s\n' '{"recommendation":"  neutral   path  ","why":"reason with\nspacing","strongest_objection":"objection","change_my_mind":"contrary evidence","acceptance_checks":["first check"," second   check "],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output"
 }
 neutral_22_response() {
   printf '%s\n' \
@@ -829,8 +854,8 @@ case "${FAKE_CODEX_CASE-valid}:$attempt" in
   invalid-twice:*) printf '%s\n' '{"recommendation":"path"' >"$output" ;;
   concatenated:*)
     printf '%s\n' \
-      '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}' \
-      '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}' >"$output"
+      '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' \
+      '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output"
     ;;
   truncated:*) printf '%s\n' '{"recommendation":"DO_NOT_LEAK_REJECTED"' >"$output" ;;
   non-object:*) printf '%s\n' '["not","an","object"]' >"$output" ;;
@@ -877,7 +902,7 @@ runtime_originator=codex_exec
 case "${FAKE_CODEX_CASE-valid}" in desktop-valid) runtime_originator='Codex Desktop' ;; provenance-mismatch) runtime_originator='Codex desktop' ;; esac
 printf '%s\n' \
   "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$child\",\"source\":\"exec\",\"originator\":\"$runtime_originator\"}}" \
-  "{\"type\":\"turn_context\",\"payload\":{\"model\":\"$model\",\"effort\":\"high\",\"sandbox_policy\":{\"type\":\"$runtime_policy\"},\"permission_profile\":{\"type\":\"managed\"}}}" >"$rollout"
+  "{\"type\":\"turn_context\",\"payload\":{\"model\":\"$model\",\"effort\":\"low\",\"sandbox_policy\":{\"type\":\"$runtime_policy\"},\"permission_profile\":{\"type\":\"managed\"}}}" >"$rollout"
 printf '%s\n' "{\"type\":\"thread.started\",\"thread_id\":\"$child\"}"
 if [ "${FAKE_CODEX_CASE-valid}" = duplicate-thread ]; then
   printf '%s\n' '{"type":"thread.started","thread_id":"34343434-3434-7343-8343-343434343434"}'
@@ -908,90 +933,84 @@ assert_transport_clean() {
   [ "$(find "$fake_home/.tmp/advisor-transport" -mindepth 1 -maxdepth 1 -type d -name 'run.*' | wc -l | tr -d ' ')" -eq 0 ] || fail "private consultation directory survived wrapper exit"
 }
 PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=valid FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$transport_out" 2>"$transport_err" || {
+  sh "$transport" --role advisor-terra --checkpoint-key verify-valid --parent-thread "$transport_parent" <"$valid_packet" >"$transport_out" 2>"$transport_err" || {
     sed -n '1,20p' "$transport_err" >&2
     fail "valid fake transport failed"
   }
 [ "$(wc -l <"$transport_out" | tr -d ' ')" -eq 1 ] || fail "transport stdout was not one JSON line"
-jq -e '.status=="completed" and .runtime.agent_role=="advisor-terra" and .runtime.model=="gpt-5.6-terra" and .runtime.effort=="high" and .runtime.sandbox_policy_type=="read-only" and .runtime.transport=="codex-exec" and .response=="ADVISOR RESPONSE\nRECOMMENDATION: neutral path\nWHY: reason with spacing\nSTRONGEST OBJECTION: objection\nCHANGE MY MIND: contrary evidence\nACCEPTANCE CHECKS: first check; second check\nRISKS: none\nFOLLOW-UP AREAS: none\n"' "$transport_out" >/dev/null || fail "valid transport JSON or canonical render mismatch"
+jq -e '.status=="completed" and .selection.level=="low" and .selection.model=="gpt-6-astra" and .selection.effort=="low" and .runtime.agent_role=="advisor-astra" and .runtime.model=="gpt-6-astra" and .runtime.effort=="low" and .runtime.sandbox_policy_type=="read-only" and .runtime.transport=="codex-exec" and .response=="ADVISOR RESPONSE\nRECOMMENDATION: neutral path\nWHY: reason with spacing\nSTRONGEST OBJECTION: objection\nCHANGE MY MIND: contrary evidence\nACCEPTANCE CHECKS: first check; second check\nRISKS: none\nFOLLOW-UP AREAS: none\n"' "$transport_out" >/dev/null || fail "valid transport JSON or canonical render mismatch"
 assert_transport_clean
-for progress_line in 'launching advisor-terra (gpt-5.6-terra, high, read-only)' 'inspecting persisted runtime evidence' 'consultation verified'; do
+for progress_line in 'launching advisor-astra (gpt-6-astra, low, read-only)' 'inspecting persisted runtime evidence' 'consultation verified'; do
   grep -Fq "$progress_line" "$transport_err" || fail "transport stderr progress missing: $progress_line"
 done
 
 astra_transport_out=$tmp/astra-transport-out.json
 astra_transport_err=$tmp/astra-transport-err.txt
 PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=valid FAKE_EXPECTED_MODEL=gpt-6-astra FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-astra --parent-thread "$transport_parent" <"$valid_packet" >"$astra_transport_out" 2>"$astra_transport_err" || {
+  sh "$transport" --role advisor-astra --checkpoint-key verify-astra --parent-thread "$transport_parent" <"$valid_packet" >"$astra_transport_out" 2>"$astra_transport_err" || {
     sed -n '1,20p' "$astra_transport_err" >&2
     fail "valid fake Astra transport failed"
   }
-jq -e '.status=="completed" and .selection.tier=="opt-in" and .selection.model=="gpt-6-astra" and .selection.effort=="high" and .selection.source=="explicit-fixed" and .runtime.model=="gpt-6-astra" and .runtime.effort=="high" and .runtime.sandbox_policy_type=="read-only"' "$astra_transport_out" >/dev/null || fail "explicit Astra alias did not remain fixed and isolated"
+jq -e '.status=="completed" and .selection.level=="low" and .selection.model=="gpt-6-astra" and .selection.effort=="low" and .selection.source=="legacy-alias" and .runtime.agent_role=="advisor-astra" and .runtime.model=="gpt-6-astra" and .runtime.effort=="low" and .runtime.sandbox_policy_type=="read-only"' "$astra_transport_out" >/dev/null || fail "Astra alias did not remain fixed and isolated"
 if grep -Eq 'tier=(standard|specialist); model=gpt-6-astra|role=advisor-tier-(standard|specialist).*gpt-6-astra' "$transport"; then fail "Astra leaked into a normal tier route"; fi
-pass "explicit Astra/high fixed alias is isolated from Standard/Specialist defaults"
+pass "Astra/low fixed alias is isolated from legacy tier selectors"
 
 heartbeat_err=$tmp/heartbeat-err.txt
 PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=heartbeat FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/heartbeat-out.json" 2>"$heartbeat_err" || fail "heartbeat transport fixture failed"
+  sh "$transport" --role advisor-terra --checkpoint-key verify-heartbeat --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/heartbeat-out.json" 2>"$heartbeat_err" || fail "heartbeat transport fixture failed"
 [ "$(grep -Fc 'owned child invocation still running' "$heartbeat_err")" -eq 1 ] || fail "heartbeat was not emitted once and cleaned up"
 [ "$(wc -l <"$tmp/heartbeat-out.json" | tr -d ' ')" -eq 1 ] || fail "heartbeat fixture contaminated stdout"
 assert_transport_clean
 
 neutral_capture=$tmp/neutral-capture; neutral_prompts=$tmp/neutral-prompts
 mkdir "$neutral_capture" "$neutral_prompts"
-retry_count=$tmp/retry-count
-retry_err=$tmp/retry-err.txt
-PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=neutral-22-first-valid-second FAKE_CODEX_COUNT_FILE="$retry_count" FAKE_CODEX_RESPONSE_CAPTURE_DIR="$neutral_capture" FAKE_CODEX_PROMPT_DIR="$neutral_prompts" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/retry-out.json" 2>"$retry_err" || fail "neutral 22-line response did not retry successfully"
-[ "$(cat "$retry_count")" -eq 2 ] || fail "neutral 22-line response did not launch exactly one retry"
+neutral_count=$tmp/neutral-count
+neutral_err=$tmp/neutral-err.txt
+if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=neutral-22-first-valid-second FAKE_CODEX_COUNT_FILE="$neutral_count" FAKE_CODEX_RESPONSE_CAPTURE_DIR="$neutral_capture" FAKE_CODEX_PROMPT_DIR="$neutral_prompts" FAKE_PARENT_ID="$transport_parent" \
+  sh "$transport" --role advisor-terra --checkpoint-key verify-neutral --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/neutral-out.json" 2>"$neutral_err"; then
+  fail "neutral 22-line response was incorrectly accepted"
+fi
+[ "$(cat "$neutral_count")" -eq 1 ] || fail "neutral response launched a corrective retry"
 [ "$(wc -l <"$neutral_capture/attempt.1.txt" | tr -d ' ')" -eq 22 ] || fail "neutral regression was not exactly 22 lines"
 awk 'NR==1&&$0=="ADVISOR RESPONSE"{a++} NR==2&&$0~/^RECOMMENDATION:/{a++} NR==4&&$0~/^WHY:/{a++} NR==6&&$0~/^STRONGEST OBJECTION:/{a++} NR==8&&$0~/^CHANGE MY MIND:/{a++} NR==10&&$0=="ACCEPTANCE CHECKS:"{a++} NR==20&&$0~/^RISKS:/{a++} NR==22&&$0~/^FOLLOW-UP AREAS:/{a++} (NR==3||NR==5||NR==7||NR==9||NR==19||NR==21)&&$0==""{b++} NR>=11&&NR<=18&&$0~/^- neutral check [1-8]$/{c++} END{exit !(a==8&&b==6&&c==8)}' "$neutral_capture/attempt.1.txt" || fail "neutral 22-line structure mismatch"
-grep -Fq 'class=legacy-text field=response' "$neutral_prompts/attempt.2.txt" || fail "corrective retry omitted redacted legacy-text class"
-if grep -Fq 'neutral check 1' "$neutral_prompts/attempt.2.txt"; then fail "corrective retry leaked rejected response"; fi
-jq -e '.status=="completed" and (.response|startswith("ADVISOR RESPONSE\nRECOMMENDATION:"))' "$tmp/retry-out.json" >/dev/null || fail "retry did not return only the valid second response"
-grep -Fq 'runtime-valid response failed validation; launching one fresh corrective retry (class=legacy-text field=response)' "$retry_err" || fail "corrective retry progress missing from stderr"
+grep -Fq 'response validation failed' "$neutral_err" || fail "terminal validation progress missing from stderr"
+if [ -e "$neutral_prompts/attempt.2.txt" ]; then fail "terminal validation created a second prompt"; fi
 assert_transport_clean
 
 twice_count=$tmp/twice-count
 twice_err=$tmp/twice-error
 if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=invalid-twice FAKE_CODEX_COUNT_FILE="$twice_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$twice_err"; then fail "transport accepted two invalid responses"; fi
-[ "$(cat "$twice_count")" -eq 2 ] || fail "invalid-twice did not stop after one retry"
+  sh "$transport" --role advisor-terra --checkpoint-key verify-invalid-twice --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$twice_err"; then fail "transport accepted an invalid response"; fi
+[ "$(cat "$twice_count")" -eq 1 ] || fail "invalid response launched a retry"
 grep -Fq 'class=invalid-json field=response' "$twice_err" || fail "invalid JSON diagnostic mismatch"
 assert_transport_clean
 
 reused_count=$tmp/reused-count
 reused_err=$tmp/reused-err.txt
 if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=retry-reused-child FAKE_CODEX_COUNT_FILE="$reused_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$reused_err"; then fail "transport accepted a retry that reused the first child"; fi
-[ "$(cat "$reused_count")" -eq 2 ] || fail "reused-child retry did not stop after exactly two launches"
-grep -Fq 'retry reused the first child thread' "$reused_err" || fail "reused-child retry was not classified as terminal identity failure"
+  sh "$transport" --role advisor-terra --checkpoint-key verify-reused --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$reused_err"; then fail "transport accepted terminal validation case"; fi
+[ "$(cat "$reused_count")" -eq 1 ] || fail "terminal validation launched a retry"
+grep -Fq 'response validation failed' "$reused_err" || fail "terminal validation was not classified as such"
 
 for terminal_case in launcher-failure duplicate-thread same-session runtime-invalid-first; do
   terminal_count=$tmp/terminal-count-$terminal_case
   if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE="$terminal_case" FAKE_CODEX_COUNT_FILE="$terminal_count" FAKE_PARENT_ID="$transport_parent" \
-    sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted terminal case: $terminal_case"; fi
+    sh "$transport" --role advisor-terra --checkpoint-key "verify-$terminal_case" --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted terminal case: $terminal_case"; fi
   [ "$(cat "$terminal_count")" -eq 1 ] || fail "transport retried terminal case: $terminal_case"
 done
 
-second_runtime_count=$tmp/terminal-count-runtime-invalid-second
-if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=runtime-invalid-second FAKE_CODEX_COUNT_FILE="$second_runtime_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted runtime-invalid retry child"; fi
-[ "$(cat "$second_runtime_count")" -eq 2 ] || fail "runtime-invalid second child launched other than two total children"
-assert_transport_clean
-
 PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=desktop-valid FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/desktop-transport-out.json" 2>"$tmp/desktop-transport-err.txt" || fail "transport rejected exact Codex Desktop provenance"
-jq -e '.status=="completed" and .runtime.transport=="codex-exec" and .runtime.sandbox_policy_type=="read-only"' "$tmp/desktop-transport-out.json" >/dev/null || fail "desktop transport result mismatch"
+  sh "$transport" --role advisor-terra --checkpoint-key verify-desktop --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/desktop-transport-out.json" 2>"$tmp/desktop-transport-err.txt" || fail "transport rejected exact Codex Desktop provenance"
+jq -e '.status=="completed" and .runtime.agent_role=="advisor-astra" and .runtime.model=="gpt-6-astra" and .runtime.effort=="low" and .runtime.transport=="codex-exec" and .runtime.sandbox_policy_type=="read-only"' "$tmp/desktop-transport-out.json" >/dev/null || fail "desktop transport result mismatch"
 if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=provenance-mismatch FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$tmp/provenance-transport-err.txt"; then fail "transport accepted near-match provenance"; fi
+  sh "$transport" --role advisor-terra --checkpoint-key verify-provenance --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$tmp/provenance-transport-err.txt"; then fail "transport accepted near-match provenance"; fi
 grep -Fq 'runtime_provenance_mismatch' "$tmp/provenance-transport-err.txt" || fail "transport did not preserve provenance mismatch category"
 
 misordered_packet=$tmp/misordered-packet.txt
 printf '%s\n' CONTEXT 'evidence' DECISION 'question' OPTIONS 'choice' BOUNDARIES 'limits' REQUEST 'challenge' >"$misordered_packet"
 marker=$tmp/fake-codex-called
 if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_MARKER="$marker" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$misordered_packet" >/dev/null 2>&1; then fail "transport accepted misordered packet headings"; fi
+  sh "$transport" --role advisor-terra --checkpoint-key verify-misordered --parent-thread "$transport_parent" <"$misordered_packet" >/dev/null 2>&1; then fail "transport accepted misordered packet headings"; fi
 [ ! -e "$marker" ] || fail "transport invoked codex before rejecting packet order"
 
 for diagnostic_spec in \
@@ -1018,10 +1037,10 @@ for diagnostic_spec in \
   rejected_out=$tmp/rejected-out-$rejected_case.txt
   rejected_err=$tmp/rejected-err-$rejected_case.txt
   if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE="$rejected_case" FAKE_CODEX_COUNT_FILE="$rejected_count" FAKE_PARENT_ID="$transport_parent" \
-    sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$rejected_out" 2>"$rejected_err"; then
+    sh "$transport" --role advisor-terra --checkpoint-key "verify-rejected-$rejected_case" --parent-thread "$transport_parent" <"$valid_packet" >"$rejected_out" 2>"$rejected_err"; then
     fail "transport accepted fake case: $rejected_case"
   fi
-  [ "$(cat "$rejected_count")" -eq 2 ] || fail "response validation case did not exercise exactly one fresh retry: $rejected_case"
+  [ "$(cat "$rejected_count")" -eq 1 ] || fail "response validation case launched a retry: $rejected_case"
   grep -Fq "class=$expected_class field=$expected_field" "$rejected_err" || fail "response validation diagnostic mismatch: $rejected_case"
   if grep -Fq 'DO_NOT_LEAK_REJECTED' "$rejected_out" "$rejected_err"; then fail "response validation leaked rejected content: $rejected_case"; fi
   assert_transport_clean
@@ -1030,8 +1049,8 @@ done
 render_count=$tmp/render-count
 render_err=$tmp/render-err
 if PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=valid FAKE_JQ_RENDER_FAILURE=1 FAKE_CODEX_COUNT_FILE="$render_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$render_err"; then fail "transport accepted render failure"; fi
-[ "$(cat "$render_count")" -eq 2 ] || fail "render failure did not stop after one corrective retry"
+  sh "$transport" --role advisor-terra --checkpoint-key verify-render --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$render_err"; then fail "transport accepted render failure"; fi
+[ "$(cat "$render_count")" -eq 1 ] || fail "render failure launched a corrective retry"
 grep -Fq 'class=render-failure field=response' "$render_err" || fail "render failure diagnostic mismatch"
 assert_transport_clean
 
@@ -1043,10 +1062,10 @@ jq --stream -c 'select(length == 2)' "$truncated_fixture" >"$tmp/truncated-parse
 
 concurrent_sync=$tmp/concurrent-sync; mkdir "$concurrent_sync"
 PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=concurrent FAKE_CODEX_CONCURRENT_SLOT=1 FAKE_CODEX_SYNC_DIR="$concurrent_sync" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-1.json" 2>"$tmp/concurrent-1.err" &
+  sh "$transport" --role advisor-terra --checkpoint-key verify-concurrent-1 --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-1.json" 2>"$tmp/concurrent-1.err" &
 concurrent_pid_1=$!
 PATH="$fake_bin:$PATH" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=concurrent FAKE_CODEX_CONCURRENT_SLOT=2 FAKE_CODEX_SYNC_DIR="$concurrent_sync" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-2.json" 2>"$tmp/concurrent-2.err" &
+  sh "$transport" --role advisor-terra --checkpoint-key verify-concurrent-2 --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-2.json" 2>"$tmp/concurrent-2.err" &
 concurrent_pid_2=$!
 wait "$concurrent_pid_1" || fail "first concurrent transport failed"
 : >"$concurrent_sync/release.2"
@@ -1054,7 +1073,7 @@ wait "$concurrent_pid_2" || fail "second concurrent transport lost its private d
 [ "$(cat "$concurrent_sync/dir.1")" != "$(cat "$concurrent_sync/dir.2")" ] || fail "concurrent transports reused a consultation directory"
 jq -e '.status=="completed"' "$tmp/concurrent-1.json" "$tmp/concurrent-2.json" >/dev/null || fail "concurrent transport result mismatch"
 assert_transport_clean
-pass "run-advisor behavioral transport: strict streamed JSON, duplicate/overwrite defense, nonblank semantics, exact eight-line renderer, neutral 22-line corrective retry, redacted diagnostics, two-child ceiling, terminal runtime failures, mode-0700 cleanup, concurrency isolation, stderr progress, and single JSON stdout"
+pass "run-advisor behavioral transport: strict streamed JSON, typed escalation, duplicate/overwrite defense, nonblank semantics, exact eight-line renderer, one-pass terminal validation, redacted diagnostics, runtime failures, mode-0700 cleanup, concurrency isolation, stderr progress, and single JSON stdout"
 
 audit_sessions=$tmp/audit-sessions; mkdir -p "$audit_sessions/2026/01/01"
 python3 - "$audit_sessions/2026/01/01" <<'PY'
@@ -1212,9 +1231,9 @@ import copy,json,sys
 result,rerun_result,unnecessary_result,threshold_pass_result,threshold_fail_result,fixtures=sys.argv[1:]; items=json.load(open(fixtures))["cases"]
 schemas=[]; n=0
 def trial(route,risk="standard"):
-  selected_role="advisor-terra" if risk=="standard" else "advisor-sol"
-  selected_model="gpt-5.6-terra" if risk=="standard" else "gpt-5.6-sol"
-  return {"route":route,"advisor_count":1 if route=="consult" else 0,"roles":[selected_role] if route=="consult" else [],"freshness":"distinct_receiver_thread" if route=="consult" else "none","model":selected_model if route=="consult" else "none","effort":"high" if route=="consult" else "none","sandbox":"read-only" if route=="consult" else "none","risk":risk,"selected_role":selected_role,"selected_model":selected_model}
+  selected_role="advisor-astra"
+  selected_model="gpt-6-astra"
+  return {"route":route,"advisor_count":1 if route=="consult" else 0,"roles":[selected_role] if route=="consult" else [],"freshness":"distinct_receiver_thread" if route=="consult" else "none","model":selected_model if route=="consult" else "none","effort":"low" if route=="consult" else "none","sandbox":"read-only" if route=="consult" else "none","risk":risk,"selected_role":selected_role,"selected_model":selected_model}
 for name,flag in (("v1",False),("v2",True)):
   cases=[]
   for c in items:
@@ -1347,8 +1366,8 @@ root_id="11111111-1111-7111-8111-111111111111"
 child_id="22222222-2222-7222-8222-222222222222"
 def message(route, extra=""):
     return {"type":"item.completed","item":{"type":"agent_message","text":extra+f"ADVISOR_EVAL route={route}"}}
-def spawn(role="advisor-sol",model="gpt-5.6-sol",**changes):
-    item={"id":"spawn-1","type":"collab_tool_call","tool":"spawn_agent","receiver_thread_ids":[child_id],"receiver_agents":[{"agent_role":role,"thread_id":child_id}],"model":model,"reasoning_effort":"high","status":"completed"}
+def spawn(role="advisor-astra",model="gpt-6-astra",**changes):
+    item={"id":"spawn-1","type":"collab_tool_call","tool":"spawn_agent","receiver_thread_ids":[child_id],"receiver_agents":[{"agent_role":role,"thread_id":child_id}],"model":model,"reasoning_effort":"low","status":"completed"}
     item.update(changes)
     return {"type":"item.completed","item":item}
 def write(name, events):
@@ -1357,7 +1376,7 @@ base=[{"type":"thread.started","thread_id":root_id},spawn(),message("consult","P
 write("valid-consult",base)
 started=copy.deepcopy(base[1]); started["type"]="item.started"; started["item"]["status"]="in_progress"
 write("valid-lifecycle",[base[0],started,base[1],base[2]])
-write("valid-terra",[{"type":"thread.started","thread_id":root_id},spawn("advisor-terra","gpt-5.6-terra"),message("consult")])
+write("valid-astra",[{"type":"thread.started","thread_id":root_id},spawn("advisor-astra","gpt-6-astra"),message("consult")])
 write("valid-skip",[{"type":"thread.started","thread_id":root_id},message("skip")])
 write("valid-unavailable",[{"type":"thread.started","thread_id":root_id},message("unavailable","ADVISOR DECISION\nroute: unavailable\n")])
 write("unavailable-call",[{"type":"thread.started","thread_id":root_id},message("unavailable","ADVISOR DECISION\nroute: unavailable\nADVISOR CALL\n")])
@@ -1372,24 +1391,24 @@ for name,changes in (
     ("wrong-role",{"receiver_agents":[{"agent_role":"advisor-terra","thread_id":child_id}]}),
     ("wrong-model",{"model":"gpt-5.6-terra"}),
     ("wrong-effort",{"reasoning_effort":"medium"}),
-    ("root-equals-child",{"receiver_thread_ids":[root_id],"receiver_agents":[{"agent_role":"advisor-sol","thread_id":root_id}]}),
+    ("root-equals-child",{"receiver_thread_ids":[root_id],"receiver_agents":[{"agent_role":"advisor-astra","thread_id":root_id}]}),
     ("noncompleted",{"status":"failed"}),
 ):
     write(name,[{"type":"thread.started","thread_id":root_id},spawn(**changes),message("consult")])
 PY
 events=$tmp/runtime-events
-ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-consult.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-consult.json" ADVISOR_EXPECTED_ROLE=advisor-sol ADVISOR_EXPECTED_MODEL=gpt-5.6-sol sh "$evaluator"
-jq -e '.route=="consult" and .advisor_count==1 and .roles==["advisor-sol"] and .freshness=="distinct_receiver_thread" and .model=="gpt-5.6-sol" and .effort=="high" and .sandbox=="read-only"' "$tmp/valid-consult.json" >/dev/null || fail "valid Sol consult spawn evidence was not derived exactly"
-ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-lifecycle.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-lifecycle.json" ADVISOR_EXPECTED_ROLE=advisor-sol ADVISOR_EXPECTED_MODEL=gpt-5.6-sol sh "$evaluator"
-jq -e '.route=="consult" and .advisor_count==1 and .roles==["advisor-sol"]' "$tmp/valid-lifecycle.json" >/dev/null || fail "one logical spawn lifecycle was not accepted"
-ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-terra.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-terra.json" ADVISOR_EXPECTED_ROLE=advisor-terra ADVISOR_EXPECTED_MODEL=gpt-5.6-terra sh "$evaluator"
-jq -e '.role==null and .roles==["advisor-terra"] and .model=="gpt-5.6-terra" and .effort=="high"' "$tmp/valid-terra.json" >/dev/null || fail "valid Terra consult spawn evidence was not derived exactly"
-ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-skip.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-skip.json" ADVISOR_EXPECTED_ROLE=advisor-sol ADVISOR_EXPECTED_MODEL=gpt-5.6-sol sh "$evaluator"
+ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-consult.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-consult.json" ADVISOR_EXPECTED_ROLE=advisor-astra ADVISOR_EXPECTED_MODEL=gpt-6-astra sh "$evaluator"
+jq -e '.route=="consult" and .advisor_count==1 and .roles==["advisor-astra"] and .freshness=="distinct_receiver_thread" and .model=="gpt-6-astra" and .effort=="low" and .sandbox=="read-only"' "$tmp/valid-consult.json" >/dev/null || fail "valid Astra consult spawn evidence was not derived exactly"
+ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-lifecycle.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-lifecycle.json" ADVISOR_EXPECTED_ROLE=advisor-astra ADVISOR_EXPECTED_MODEL=gpt-6-astra sh "$evaluator"
+jq -e '.route=="consult" and .advisor_count==1 and .roles==["advisor-astra"]' "$tmp/valid-lifecycle.json" >/dev/null || fail "one logical spawn lifecycle was not accepted"
+ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-astra.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-astra.json" ADVISOR_EXPECTED_ROLE=advisor-astra ADVISOR_EXPECTED_MODEL=gpt-6-astra sh "$evaluator"
+jq -e '.role==null and .roles==["advisor-astra"] and .model=="gpt-6-astra" and .effort=="low"' "$tmp/valid-astra.json" >/dev/null || fail "valid Astra consult spawn evidence was not derived exactly"
+ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-skip.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-skip.json" ADVISOR_EXPECTED_ROLE=advisor-astra ADVISOR_EXPECTED_MODEL=gpt-6-astra sh "$evaluator"
 jq -e '.route=="skip" and .advisor_count==0 and .roles==[]' "$tmp/valid-skip.json" >/dev/null || fail "valid skip/no-spawn evidence was not derived exactly"
-ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-unavailable.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-unavailable.json" ADVISOR_EXPECTED_ROLE=advisor-sol ADVISOR_EXPECTED_MODEL=gpt-5.6-sol sh "$evaluator"
+ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/valid-unavailable.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/valid-unavailable.json" ADVISOR_EXPECTED_ROLE=advisor-astra ADVISOR_EXPECTED_MODEL=gpt-6-astra sh "$evaluator"
 jq -e '.route=="unavailable" and .advisor_count==0 and .roles==[] and .freshness=="none"' "$tmp/valid-unavailable.json" >/dev/null || fail "valid unavailable/no-spawn preflight evidence was not derived exactly"
 for rejected_events in unavailable-call unavailable-spawn fabricated-no-spawn empty-wait duplicate-spawn duplicate-started extra-uncompleted-spawn wrong-role wrong-model wrong-effort root-equals-child noncompleted; do
-  if ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/$rejected_events.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/rejected.json" ADVISOR_EXPECTED_ROLE=advisor-sol ADVISOR_EXPECTED_MODEL=gpt-5.6-sol sh "$evaluator" >/dev/null 2>&1; then
+  if ADVISOR_PARSE_RUNTIME_EVIDENCE="$events/$rejected_events.jsonl" ADVISOR_RUNTIME_EVIDENCE_OUT="$tmp/rejected.json" ADVISOR_EXPECTED_ROLE=advisor-astra ADVISOR_EXPECTED_MODEL=gpt-6-astra sh "$evaluator" >/dev/null 2>&1; then
     fail "runtime evidence parser accepted: $rejected_events"
   fi
 done
@@ -1399,8 +1418,8 @@ grep -Fq 'route=unavailable' "$evaluator" || fail "ephemeral evaluator does not 
 grep -Fq 'do not emit ADVISOR CALL, and do not spawn a child' "$evaluator" || fail "ephemeral evaluator permits a call or child spawn"
 
 for policy_case in \
-  'standard:advisor-terra gpt-5.6-terra' 'STANDARD:advisor-terra gpt-5.6-terra' \
-  'specialist:advisor-sol gpt-5.6-sol' 'SPECIALIST:advisor-sol gpt-5.6-sol'; do
+  'standard:advisor-astra gpt-6-astra' 'STANDARD:advisor-astra gpt-6-astra' \
+  'specialist:advisor-astra gpt-6-astra' 'SPECIALIST:advisor-astra gpt-6-astra'; do
   risk=${policy_case%%:*}; wanted=${policy_case#*:}
   actual=$(ADVISOR_SELECT_FOR_RISK=$risk sh "$evaluator")
   [ "$actual" = "$wanted" ] || fail "wrong advisor role/model selection for $risk"

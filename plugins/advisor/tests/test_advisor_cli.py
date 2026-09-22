@@ -135,7 +135,7 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertEqual(show.returncode, 0, show.stderr)
         self.assertEqual(len(show.stdout.splitlines()), 1)
         current = json.loads(show.stdout)
-        self.assertEqual(current["selections"]["standard"]["model"], "gpt-5.6-terra")
+        self.assertEqual(current["selections"]["standard"]["model"], "gpt-6-astra")
         self.assertTrue(current["selection_revision"].startswith("sha256:"))
         self.assertTrue(current["live_config"]["path"].endswith("advisor.toml"))
         doctor = self.run_cli("--json", "doctor")
@@ -156,7 +156,7 @@ class AdvisorCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             launch = json.loads(result.stdout)["launch"]
             self.assertEqual(
-                (launch["model"], launch["effort"]), ("gpt-5.6-terra", "high")
+                (launch["model"], launch["effort"]), ("gpt-6-astra", "low")
             )
             self.assertFalse((self.home / "advisor").exists())
             self.assertEqual(self.invocations(), [])
@@ -206,7 +206,7 @@ class AdvisorCliTests(unittest.TestCase):
         )
         self.assertEqual(preset.returncode, 0, preset.stderr)
         status = json.loads(self.run_cli("--json", "status").stdout)
-        self.assertEqual(status["selections"]["standard"]["model"], "gpt-5.6-terra")
+        self.assertEqual(status["selections"]["standard"]["model"], "gpt-6-astra")
 
     def test_canary_invalid_response_is_terminal_without_retry(self) -> None:
         self.add()
@@ -269,7 +269,7 @@ class AdvisorCliTests(unittest.TestCase):
         written = self.run_cli("--json", "_journal-record", json.dumps(record))
         self.assertEqual(written.returncode, 0, written.stderr)
         doctor = json.loads(self.run_cli("--json", "doctor").stdout)
-        self.assertEqual(doctor["live_config"]["pairs"]["standard"]["model"], "gpt-5.6-terra")
+        self.assertEqual(doctor["live_config"]["pairs"]["low"]["model"], "gpt-6-astra")
         self.assertTrue(doctor["live_config"]["source_revision"].startswith("sha256:"))
         self.assertIsNone(doctor["stale_selections"])
         self.assertEqual(doctor["last_content_free_failure"]["outcome"], "failed")

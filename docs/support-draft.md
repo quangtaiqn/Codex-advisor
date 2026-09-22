@@ -43,7 +43,7 @@ Before opening a support ticket, ensure that Codex CLI or desktop is installed a
 operational, `jq` is on `$PATH`, a POSIX shell is available, an active persisted
 Codex session rollout exists, `CODEX_THREAD_ID` is set in the active parent
 context, the installed plugin can use its declared `require_escalated` launcher
-permission, and the account has access to `gpt-5.6-terra` and `gpt-5.6-sol`.
+permission, and the account has access to `gpt-6-astra` at the required effort.
 
 ## 5. Common Troubleshooting Scenarios
 
@@ -56,14 +56,14 @@ and start a new Codex thread.
 ### Model availability or authorization failure
 
 Verify that the authenticated OpenAI account and subscription provide
-`gpt-5.6-terra` and `gpt-5.6-sol` at the required reasoning effort, then verify
+`gpt-6-astra` at the required reasoning effort, then verify
 Codex authentication with the standard CLI commands.
 
-### Response classification retry
+### Response validation stops the pass
 
-A runtime-valid child with an empty or structurally malformed response gets one
-fresh retry. If it fails again, the plugin records `recommendation: unavailable` and
-`decision: blocked` and stops. Packet, launcher, identity, runtime, wrong-model,
+A runtime-valid child with an empty or structurally malformed response is terminal:
+the plugin records `recommendation: unavailable` and `decision: blocked`, consumes
+the reserved level, and stops. Packet, launcher, identity, runtime, wrong-model,
 wrong-effort, and tool-use failures are terminal and never retry.
 
 ## 6. Check an Installed Copy

@@ -9,13 +9,12 @@ browse the web, implement work, deploy, or make the final decision.
 Install [**Codex Advisor** from the official Plugins Directory](https://chatgpt.com/plugins/plugins_6a984f37e9c88191a2a777998f7b0521). It requires
 **Codex CLI** or **Codex desktop**; generic ChatGPT is not a supported runtime.
 
-Advisor uses Standard (Terra/high) for ordinary bounded material architecture,
-interface, data-model, and generic-advisor decisions. It uses Specialist (Sol/high)
-only when targeted evidence still leaves a cross-module/system design, compatibility
-or concurrency boundary, competing diagnosis, security/trust boundary, recovery,
-irreversible migration, or data-loss decision unresolved. Project importance,
-security adjacency, or an ordinary architecture question alone stays Standard. It
-leaves factual, mechanical, and explicitly no-delegation work alone.
+Advisor uses one fixed Astra route for every eligible checkpoint. It starts at
+`gpt-6-astra` / `low` and can move only through `medium`, `high`, and
+`extra_high` (runtime `xhigh`) after an explicit adjacent escalation request.
+It leaves factual, mechanical, cheap/resolved, completion/reassurance, and explicitly
+no-delegation work alone. Existing Standard/Specialist names remain compatibility
+labels only and cannot select Terra or Sol.
 
 ## Links
 
@@ -43,20 +42,15 @@ marketplace publication; a ZIP alone is only a candidate.
 
 ## Selection and discovery
 
-New consultations use `--tier standard|specialist`. The installed live file
-`advisor.toml`, beside the loaded skill, is authoritative: Standard defaults to
-Terra/high and Specialist to Sol/high. Edit its two documented TOML sections and the
-next consultation uses the changed pair. No discovery, catalog registration, canary,
-state setup, or file copy is required. A future syntactically valid selector is
-permitted subject to account/runtime support; changing Specialist to Astra opts into
-its higher usage. Plugin updates or reinstalling can replace in-place edits.
-Advisor freezes the model, effort, content-digest source revision, transport contract,
-and 30–900 second total deadline before launch, so retries do not choose a newer model
-or fallback. The legacy `--role advisor-terra` and `--role advisor-sol` aliases remain
-fixed Terra/high and Sol/high routes and do not follow `advisor.toml`.
-The explicit `--role advisor-astra` alias is a separate opt-in Astra/high route; it is
-never chosen by Standard/Specialist defaults or trigger selection and does not change
-tier defaults.
+New consultations use `--level low|medium|high|extra_high` and an opaque
+`--checkpoint-key`. The installed live file `advisor.toml`, beside the loaded skill,
+is authoritative and contains one fixed Astra policy plus the ordered ladder. Low is
+the only direct entry; higher levels require the verified adjacent response from the
+same checkpoint chain. The launcher freezes model, effort, policy digest, transport
+contract, and deadline before launch. A durable ledger reserves a level before the
+child starts, so a restart never silently spends the same level twice. Legacy
+`--tier`/`--role` names are aliases into the same Astra-low-first route. No catalog,
+preset, discovery result, or old saved selection can override it.
 
 The installed copy includes `scripts/advisor-config.sh`. `show` and `doctor` display
 the actual `advisor.toml` pairs, path, and source revision. Its catalog, preset, and
@@ -81,14 +75,13 @@ does not run a background deletion service.
 ## Response contract
 
 The wrapper accepts model output only as one object matching its installed JSON Schema,
-the sole supported wrapper model-output format. Direct/native role invocation is unsupported and is not schema-validated. After
-runtime inspection, wrapper-owned semantic validation renders the accepted object as
-the canonical eight-line `ADVISOR RESPONSE` receipt. A runtime-valid
-response-validation failure exposes only a redacted failure class and field and gets
-one fresh corrective retry, with at most two children. Runtime, identity,
-isolation, provenance, or tool failures are terminal. Rejected content remains private
-to the mode-0700 consultation directory, is never emitted or copied into a retry
-prompt, and is removed by unconditional cleanup.
+the sole supported wrapper model-output format. Direct/native role invocation is
+unsupported and is not schema-validated. After runtime inspection, wrapper-owned
+semantic validation renders the accepted object as the canonical eight-line
+`ADVISOR RESPONSE` receipt. Each level is one pass: response/schema/runtime failures
+are terminal, never corrected by a retry, and never reopen a consumed checkpoint.
+Rejected content remains private to the mode-0700 consultation directory and is
+removed by unconditional cleanup.
 
 When the Codex shell tool returns a nonempty `session_id`, that is nonterminal
 progress, not an Advisor result. The caller drains that exact handle with

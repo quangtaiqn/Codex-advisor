@@ -36,14 +36,13 @@ validate_feature_state() {
 select_advisor_role() {
   normalized=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
   case "$normalized" in
-    standard) printf '%s\n' advisor-terra ;;
-    specialist) printf '%s\n' advisor-sol ;;
+    standard|specialist) printf '%s\n' advisor-astra ;;
     *) return 1 ;;
   esac
 }
 
 model_for_role() {
-  case "$1" in advisor-terra) printf '%s\n' gpt-5.6-terra ;; advisor-sol) printf '%s\n' gpt-5.6-sol ;; *) return 1 ;; esac
+  case "$1" in advisor-astra) printf '%s\n' gpt-6-astra ;; *) return 1 ;; esac
 }
 
 require_ephemeral_unavailable_route() {
@@ -61,7 +60,7 @@ from pathlib import Path
 
 raw_path, evidence_path = map(Path, sys.argv[1:3])
 expected_role, expected_model = sys.argv[3:]
-valid_pairs = {"advisor-terra":"gpt-5.6-terra", "advisor-sol":"gpt-5.6-sol"}
+valid_pairs = {"advisor-astra":"gpt-6-astra"}
 if valid_pairs.get(expected_role) != expected_model:
     raise SystemExit("unsupported expected role/model pair")
 events = []
@@ -143,11 +142,11 @@ else:
     agent = agents[0]
     if agent.get("agent_role") != expected_role or agent.get("thread_id") != tids[0]:
         raise SystemExit("wrong receiver identity")
-    if item.get("model") != expected_model or item.get("reasoning_effort") != "high":
+    if item.get("model") != expected_model or item.get("reasoning_effort") != "low":
         raise SystemExit("wrong receiver model or effort")
     if tids[0] == root:
         raise SystemExit("receiver reused root thread")
-    evidence = {"route":"consult","advisor_count":1,"roles":[expected_role],"freshness":"distinct_receiver_thread","model":expected_model,"effort":"high","sandbox":"read-only"}
+    evidence = {"route":"consult","advisor_count":1,"roles":[expected_role],"freshness":"distinct_receiver_thread","model":expected_model,"effort":"low","sandbox":"read-only"}
 
 text = json.dumps(evidence, separators=(",", ":"))
 if root in text or any(tid in text for item in all_spawns for tid in item.get("receiver_thread_ids", []) if isinstance(tid, str)):
@@ -220,10 +219,8 @@ if re.search(r'(?i)(api[_-]?key|authorization|bearer|password|token)["\s:]+[^"\s
 fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))["cases"]
 expected = {c["id"]: c for c in fixtures}
 def selected_pair(risk):
-    if risk == "standard":
-        return "advisor-terra", "gpt-5.6-terra"
-    if risk == "specialist":
-        return "advisor-sol", "gpt-5.6-sol"
+    if risk in {"standard", "specialist"}:
+        return "advisor-astra", "gpt-6-astra"
     raise SystemExit("invalid fixture risk")
 if data.get("status") == "unavailable":
     if not allow:
@@ -287,7 +284,7 @@ for schema in schemas:
             if route == "consult":
                 if trial.get("advisor_count") != 1 or roles != [expected_role] or trial.get("freshness") != "distinct_receiver_thread":
                     raise SystemExit(f"invalid consultation identity/freshness: {case['id']}")
-                if trial.get("model") != expected_model or trial.get("effort") != "high" or trial.get("sandbox") != "read-only":
+                if trial.get("model") != expected_model or trial.get("effort") != "low" or trial.get("sandbox") != "read-only":
                     raise SystemExit(f"invalid consultation pin/isolation: {case['id']}")
             elif route == "skip":
                 if trial.get("advisor_count") != 0 or roles != []:
@@ -413,10 +410,12 @@ run_trial() {
   progress "$schema: session $sessions_run/40, case $id, trial $attempt"
   eval_prompt="Classify this task under the installed Advisor consultation contract. For a consult candidate, run plugins/advisor/scripts/inspect-parent-runtime.sh before ADVISOR DECISION. This ephemeral evaluation has no persisted parent rollout, so emit exactly one ADVISOR DECISION with route: unavailable, do not emit ADVISOR CALL, and do not spawn a child. Do not implement. Finish with exactly one line: ADVISOR_EVAL route=unavailable. TASK: $prompt_text"
   codex exec --json --ignore-user-config --ignore-rules --ephemeral "$feature_switch" multi_agent_v2 \
-    -c "agents.advisor-terra.description=Advisor Terra read-only consultation" \
+    -c "agents.advisor-terra.description=Deprecated Astra low compatibility alias" \
     -c "agents.advisor-terra.config_file=\"$runtime_home/agents/advisor-terra.toml\"" \
-    -c "agents.advisor-sol.description=Advisor Sol read-only consultation" \
+    -c "agents.advisor-sol.description=Deprecated Astra low compatibility alias" \
     -c "agents.advisor-sol.config_file=\"$runtime_home/agents/advisor-sol.toml\"" \
+    -c "agents.advisor-astra.description=Active Astra low-first consultation" \
+    -c "agents.advisor-astra.config_file=\"$runtime_home/agents/advisor-astra.toml\"" \
     -c "shell_environment_policy.set={CODEX_HOME=\"$runtime_home\"}" \
     -C "$project" --sandbox read-only --skip-git-repo-check "$eval_prompt" </dev/null >"$raw" 2>/dev/null || write_unavailable runtime_evidence_unavailable
   parse_runtime_evidence "$raw" "$evidence" "$selected_role" "$selected_model" || write_unavailable runtime_evidence_unavailable

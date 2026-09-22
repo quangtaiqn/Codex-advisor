@@ -3,36 +3,33 @@
   "transport_contract_version": "1.4",
   "tested_codex_cli": "codex-cli 0.153.2",
   "defaults": {
-    "standard": { "model": "gpt-5.6-terra", "effort": "high" },
-    "specialist": { "model": "gpt-5.6-sol", "effort": "high" }
+    "standard": { "model": "gpt-6-astra", "effort": "low" },
+    "specialist": { "model": "gpt-6-astra", "effort": "low" }
   },
   "models": [
     {
       "id": "terra",
       "model": "gpt-5.6-terra",
-      "display_name": "Terra",
-      "tiers": ["standard"],
-      "compatibility_baseline": {
-        "efforts": ["high"],
-        "transport_contract_version": "1.4"
-      }
+      "display_name": "Terra (diagnostic history)",
+      "tiers": [],
+      "compatibility_baseline": null
     },
     {
       "id": "sol",
       "model": "gpt-5.6-sol",
-      "display_name": "Sol",
-      "tiers": ["specialist"],
-      "compatibility_baseline": {
-        "efforts": ["high"],
-        "transport_contract_version": "1.4"
-      }
+      "display_name": "Sol (diagnostic history)",
+      "tiers": [],
+      "compatibility_baseline": null
     },
     {
       "id": "astra",
       "model": "gpt-6-astra",
       "display_name": "Astra",
-      "tiers": [],
-      "compatibility_baseline": null
+      "tiers": ["standard", "specialist"],
+      "compatibility_baseline": {
+        "efforts": ["low", "medium", "high", "xhigh"],
+        "transport_contract_version": "1.4"
+      }
     }
   ]
 }

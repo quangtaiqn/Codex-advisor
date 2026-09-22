@@ -73,7 +73,7 @@
         <li>The optional content-free usage journal is disabled by default.</li>
         <li>If enabled, it stores operational metadata and aggregate usage counters only. It stores no consultation packets and no response content.</li>
         <li>Later journal writes prune entries older than 30 days and enforce a bounded count. There is no background deletion service.</li>
-        <li>Automatic Standard remains Terra/high for ordinary bounded architecture, interface, data-model, and generic-advisor decisions. Automatic Specialist remains Sol/high only when targeted evidence still leaves an eligible cross-system, compatibility/concurrency, competing-diagnosis, security/trust, recovery, irreversible-migration, or data-loss decision unresolved. The separate <code>advisor-astra</code> role is explicit-only, uses Astra/high, and is never selected automatically.</li>
+        <li>Active consultation uses the fixed <code>advisor-astra</code> role at low first, with verified escalation through medium, high, and extra_high (runtime <code>xhigh</code>). The legacy <code>advisor-terra</code> and <code>advisor-sol</code> names are compatibility aliases only and cannot select those historical models.</li>
     </ul>
 </section>
 
@@ -85,7 +85,7 @@
 <section aria-labelledby="third-party">
     <h2 id="third-party">5. Third-party services and surfaces</h2>
     <ul>
-        <li><strong>OpenAI Codex.</strong> Consultation requests execute via your local Codex installation. Standard remains Terra/high, Specialist remains Sol/high for unresolved eligible decisions after targeted evidence, and the separate explicit-only <code>advisor-astra</code> role uses Astra/high subject to account and runtime availability. Data handling by OpenAI is governed by OpenAI's terms.</li>
+        <li><strong>OpenAI Codex.</strong> Consultation requests execute via your local Codex installation using the Astra low-first ladder, subject to account and runtime availability. Data handling by OpenAI is governed by OpenAI's terms.</li>
         <li><strong>No MCP or hosted service.</strong> Codex Advisor provides no MCP server, no hosted service, and no background cloud service.</li>
     </ul>
 </section>

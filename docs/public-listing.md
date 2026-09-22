@@ -44,7 +44,7 @@ inspection is not claimed here.
 Automatic second opinions with your choice of models
 
 ### Long Description
-Codex Advisor automatically adds a fresh, read-only second opinion for important technical decisions in Codex CLI and Codex desktop. Standard uses Terra/high for ordinary bounded architecture, interface, data-model, and generic-advisor decisions. Specialist uses Sol/high only when targeted evidence still leaves a cross-module/system design, compatibility or concurrency boundary, competing diagnosis, security/trust boundary, recovery, irreversible migration, or data-loss decision unresolved. Project importance, security adjacency, or an ordinary architecture question alone does not select Specialist. Version 1.4.4's deferred result-delivery repair remains in place: callers drain nonterminal shell sessions, require terminal exit, and validate exactly one schema-v3 envelope. `advisor-astra` remains a separate explicit-only Astra/high role and is never selected automatically. Each consultation is tool-free, and your main agent retains control of implementation and final decisions. Consultations use your own authenticated Codex/OpenAI account; Zero Delta operates no relay or hosted backend.
+Codex Advisor automatically adds a fresh, read-only second opinion for material unresolved technical decisions in Codex CLI and Codex desktop. Active routing uses `advisor-astra` with `gpt-6-astra` at low first, then only verified adjacent escalation through medium, high, and extra_high (`xhigh` at runtime). Legacy Terra/Sol role names are compatibility aliases only and cannot select those models. Completion and reassurance checks are skipped because final review is a separate workflow. The deferred result-delivery repair remains in place: callers drain nonterminal shell sessions, require terminal exit, and validate exactly one schema-v3 envelope. Each consultation is tool-free, and your main agent retains control of implementation and final decisions. Consultations use your own authenticated Codex/OpenAI account; Zero Delta operates no relay or hosted backend.
 
 ## Surface and Host Compatibility
 
@@ -77,22 +77,21 @@ When any prerequisite is absent, the system safely records `route: unavailable` 
 
 ## Model Availability and Requirements
 
-Execution uses the user's authenticated Codex account. Normal tier consultations use the models and effort configured in the bundled `advisor.toml`:
-- Standard defaults to Terra with high reasoning effort.
-- Specialist defaults to Sol with high reasoning effort.
-- `advisor-astra` is a separate explicit-only Astra/high role; automatic selection never invokes it.
-- Astra uses more of the user's Codex allowance and remains subject to account and runtime availability.
-- Future model selectors are subject to account access and runtime support. Invalid TOML or an unsupported model reports an error; there is no silent fallback.
+Execution uses the user's authenticated Codex account. Active consultations use the fixed Astra policy in the bundled `advisor.toml`:
+- `advisor-astra` defaults to `gpt-6-astra` at low effort.
+- A typed adjacent escalation may move through medium, high, and extra_high (`xhigh` at runtime).
+- Legacy Terra/Sol names are compatibility aliases only; active selection never invokes those historical models.
+- Astra remains subject to account and runtime availability. Invalid TOML, unsupported effort, or missing escalation evidence reports an error; there is no silent fallback.
 
 ## Directory Test Cases
 
 ### Positive Test Cases
-1. **Architecture Decision:** "Should we implement event sourcing with PostgreSQL JSONB or an append-only log table in DynamoDB for our billing audit trail?" (Triggers Standard consultation).
-2. **Settled Cross-Boundary Interface:** "Targeted evidence has settled offline-conflict compatibility for our local cache and remote API; choose the bounded interface." (Triggers Standard consultation).
-3. **Unresolved Cross-System Boundary:** "Targeted evidence still leaves the cache/API concurrency and compatibility boundary unresolved." (Triggers Specialist consultation).
-4. **Unresolved Competing Diagnoses:** "Targeted evidence still supports a cache race and producer staleness across modules; choose the next diagnostic path." (Triggers Specialist consultation).
-5. **Critical Security Boundary:** "Targeted evidence still leaves the trust-boundary recovery design for an irreversible migration unresolved." (Triggers Specialist consultation).
-6. **Explicit Advisor Request:** "Use $advisor:consultation to review this caching strategy trade-off." (Triggers Standard consultation).
+1. **Architecture Decision:** "Should we implement event sourcing with PostgreSQL JSONB or an append-only log table in DynamoDB for our billing audit trail?" (Triggers Astra/low consultation).
+2. **Settled Cross-Boundary Interface:** "Targeted evidence has settled offline-conflict compatibility for our local cache and remote API; choose the bounded interface." (Skips because cheap evidence resolved the uncertainty).
+3. **Unresolved Cross-System Boundary:** "Targeted evidence still leaves the cache/API concurrency and compatibility boundary unresolved." (Triggers Astra/low consultation).
+4. **Unresolved Competing Diagnoses:** "Targeted evidence still supports a cache race and producer staleness across modules; choose the next diagnostic path." (Triggers Astra/low consultation).
+5. **Critical Security Boundary:** "Targeted evidence still leaves the trust-boundary recovery design for an irreversible migration unresolved." (Triggers Astra/low consultation).
+6. **Explicit Advisor Request:** "Use $advisor:consultation to review this caching strategy trade-off." (Triggers Astra/low consultation when uncertainty has material impact).
 
 ### Negative Test Cases
 1. **Routine Factual Query:** "What is the return type of `inspect_parent_runtime` in the operations script?" (Skips consultation; factual lookup).
@@ -101,14 +100,13 @@ Execution uses the user's authenticated Codex account. Normal tier consultations
 
 ## Candidate Notes (v1.4.5)
 
-- Automatic read-only advice uses configurable Standard and Specialist sections in the live bundled `advisor.toml` file.
-- Terra/high and Sol/high remain the automatic defaults.
-- Standard covers ordinary bounded material architecture, interface, data-model, and generic-advisor decisions.
-- Specialist applies only after targeted evidence leaves an eligible cross-system, compatibility/concurrency, competing-diagnosis, security/trust, recovery, irreversible-migration, or data-loss decision unresolved.
-- Project importance, security adjacency, and an ordinary architecture question alone remain Standard.
-- The separate `advisor-astra` role is explicit-only, pinned to Astra/high, and never selected automatically.
-- Astra uses more of the user's Codex allowance and remains subject to account and runtime availability.
-- Editing the installed file applies to the next consultation, with independent effort settings. Invalid TOML and unsupported models report errors without silent fallback.
+- Automatic read-only advice uses one fixed Astra policy in the live bundled `advisor.toml` file.
+- Every eligible checkpoint starts at Astra/low; only typed adjacent escalation can request medium, high, or extra_high (`xhigh`).
+- Legacy `advisor-terra` and `advisor-sol` names normalize to Astra/low and cannot override the active policy.
+- Routine, settled, implementation-started, completion, reassurance, and no-delegation work skips consultation.
+- A level is one pass: validation, runtime, launch, provenance, isolation, and tool-use failures are terminal and never retry.
+- The durable checkpoint ledger prevents replay after interruption and supports reconciliation before resume.
+- Astra remains subject to account and runtime availability; the plugin does not silently substitute another model.
 - No setup conversation or separate compatibility test is required, and plugin updates may replace bundled configuration edits.
 - Deferred shell handoffs remain drained to terminal exit; exactly one schema-v3 envelope is required before the enclosing call returns a receipt. There is no model fallback.
 - Consultations send bounded packets through the user's authenticated Codex/OpenAI account; Zero Delta operates no relay or hosted backend.

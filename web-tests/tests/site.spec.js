@@ -192,30 +192,26 @@ test('claim surface matches the validated listing', async ({ page }) => {
   const body = (await bodyText(page)).toLowerCase();
 
   expect(body).toContain('candidate documentation v1.4.5');
-  expect(body).toContain('automatic read-only advice');
-  expect(body).toContain('smart defaults');
-  expect(body).toContain('optional models');
-  expect(body).toContain('[standard]');
-  expect(body).toContain('[specialist]');
+  expect(body).toContain('read-only astra advice');
+  expect(body).toContain('low effort with verified escalation');
+  expect(body).toContain('[advisor]');
   expect(body).toContain('gpt-6-astra');
-  expect(body).toContain('gpt-5.6-terra');
-  expect(body).toContain('gpt-5.6-sol');
-  expect(body).toContain('next consultation');
+  expect(body).not.toContain('gpt-5.6-terra');
+  expect(body).not.toContain('gpt-5.6-sol');
   expect(body).toContain('advisor-astra');
-  expect(body).toContain('separate explicit-only');
-  expect(body).toContain('never selected automatically');
-  expect(body).toContain('uses more of your codex allowance');
+  expect(body).toContain('low first');
+  expect(body).toContain('extra_high');
+  expect(body).toContain('maps to xhigh');
   expect(body).toContain('subject to account and runtime availability');
   expect(body).toContain('plugin updates may replace edits to the bundled file.');
   expect(body).toContain('drain the nonterminal shell handoff');
   expect(body).toContain('exactly one schema-v3 result envelope');
   expect(body).toContain('retains the 1.4.4 result-delivery repair without adding fallback');
   expect(body).not.toContain('without changing model routing');
-  expect(body).toContain('standard covers ordinary bounded architecture');
-  expect(body).toContain('targeted evidence still leaves a cross-system');
-  expect(body).toContain('project importance, security adjacency, or an ordinary architecture question alone stays standard');
-  expect(body).not.toContain('advisor-terra');
-  expect(body).not.toContain('advisor-sol');
+  expect(body).toContain('completion/reassurance consultations are skipped');
+  expect(body).toContain('project importance alone does not create a consultation');
+  expect(body).toContain('advisor-terra');
+  expect(body).toContain('advisor-sol');
 });
 
 test('each route carries the candidate release metadata', async ({ page }) => {
@@ -240,10 +236,11 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('Edit that bundled file in place');
   expect(support).toContain('do not copy it');
   expect(support).toContain('Invalid TOML');
-  expect(support).toContain('unsupported-model');
+  expect(support).toContain('unsupported levels');
   expect(support).toContain('advisor-astra');
-  expect(support).toContain('separate explicit-only');
-  expect(support).toContain('never selected automatically');
+  expect(support).toContain('fixed Astra ladder');
+  expect(support).toContain('low');
+  expect(support).toContain('extra_high');
   expect(support).toContain('does not silently fall back');
   expect(support).toContain('may replace edits');
   expect(support).toContain('ADVISOR DECISION');
@@ -254,8 +251,8 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('write_stdin');
   expect(support).toContain('exactly one schema-v3 envelope');
   expect(support).toContain('does not add model fallback');
-  expect(support).toContain('targeted evidence still leaves an eligible cross-system');
-  expect(support).toContain('Project importance, security adjacency, or an ordinary architecture question alone stays Standard.');
+  expect(support).toContain('response validation stops the pass');
+  expect(support).toContain('does not launch a corrective retry');
   expect(support).not.toContain('install-agents.sh');
   expect(support).not.toContain('sh plugins/advisor/');
 });
@@ -304,8 +301,9 @@ test('public boundary and installation language are exact and the cursor is remo
   expect(privacy).toContain('no background deletion service');
   expect(privacy).toContain('uninstalling the plugin may leave user state and session logs behind');
   expect(privacy).toContain('advisor-astra');
-  expect(privacy).toContain('explicit-only');
-  expect(privacy).toContain('never selected automatically');
+  expect(privacy).toContain('low first');
+  expect(privacy).toContain('verified escalation');
+  expect(privacy).toContain('compatibility aliases only');
   expect(privacy).not.toContain('offline inference');
   expect(privacy).not.toContain('all consultation data resides solely');
   expect(privacy).not.toContain('no third-party transmission');
@@ -316,12 +314,9 @@ test('terms describe configured model responsibility and preserve legal terms', 
   const terms = await bodyText(page);
 
   expect(terms).toContain('Effective date: 10 September 2026');
-  expect(terms).toContain('models and effort configured in the bundled');
-  expect(terms).toContain('Automatic Standard remains Terra/high');
-  expect(terms).toContain('automatic Specialist remains Sol/high');
-  expect(terms).toContain('advisor-astra');
-  expect(terms).toContain('explicit-only');
-  expect(terms).toContain('never selected automatically');
+  expect(terms).toContain('fixed Astra model and ordered effort ladder configured');
+  expect(terms).toContain('extra_high');
+  expect(terms).toContain('diagnostic compatibility aliases only');
   expect(terms).toContain('OpenAI usage, quotas, and fees');
   expect(terms).toContain('update or reinstall may replace those edits');
   expect(terms).toContain('MIT License');

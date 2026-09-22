@@ -16,8 +16,8 @@ For the fictional Beacon Archive, should the import format remain backward compa
 
 ## Expected outcome
 
-Advisor emits `ADVISOR DECISION` with `route: consult`; `ADVISOR CALL` records `tier: Standard`, `role: advisor-terra`, and `status: running`; and a verified `ADVISOR RESULT` records `status: completed`, `model: gpt-5.6-terra`, `effort: high`, `isolation: read-only`, and the root's disposition.
+Advisor emits `ADVISOR DECISION` with `route: consult`; `ADVISOR CALL` records `level: low`, `role: advisor-astra`, and `status: running`; and a verified `ADVISOR RESULT` records `status: completed`, `model: gpt-6-astra`, `effort: low`, `isolation: read-only`, and the root's disposition.
 
 ## Why this is the expected outcome
 
-Codex desktop is supported when preflight succeeds, and a compatibility decision uses the Standard pinned advisor and its visible receipts.
+Codex desktop is supported when preflight succeeds, and a compatibility decision uses the active Astra low-first advisor and its visible receipts.

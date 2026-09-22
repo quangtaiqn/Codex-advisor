@@ -40,7 +40,7 @@ class AdvisorConfigTests(unittest.TestCase):
     def test_defaults_are_read_only_and_do_not_initialize_state(self) -> None:
         self.assertEqual(
             config.load_settings(self.paths)["selections"]["standard"],
-            {"model": "gpt-5.6-terra", "effort": "high"},
+            {"model": "gpt-6-astra", "effort": "low"},
         )
         self.assertFalse(self.paths.root.exists())
 
@@ -140,12 +140,12 @@ class AdvisorConfigTests(unittest.TestCase):
         )
         self.assertTrue(
             config.shipped_default_launch_eligible(
-                tier="standard", model="gpt-5.6-terra", effort="high"
+                tier="standard", model="gpt-6-astra", effort="low"
             )
         )
         self.assertFalse(
             config.shipped_default_launch_eligible(
-                tier="standard", model="gpt-6-astra", effort="high"
+                tier="standard", model="gpt-5.6-terra", effort="high"
             )
         )
 
@@ -158,10 +158,10 @@ class AdvisorConfigTests(unittest.TestCase):
         finally:
             config.current_codex_version = original
         self.assertEqual(
-            (standard["model"], standard["effort"]), ("gpt-5.6-terra", "high")
+            (standard["model"], standard["effort"]), ("gpt-6-astra", "low")
         )
         self.assertEqual(
-            (specialist["model"], specialist["effort"]), ("gpt-5.6-sol", "high")
+            (specialist["model"], specialist["effort"]), ("gpt-6-astra", "low")
         )
         self.assertFalse(self.paths.root.exists())
 
@@ -176,7 +176,7 @@ class AdvisorConfigTests(unittest.TestCase):
         with self.assertRaises(config.ConfigError):
             config.validate_shipped_models(malformed)
         malformed = json.loads(json.dumps(shipped))
-        malformed["models"][0]["compatibility_baseline"]["efforts"] = [["high"]]
+        malformed["models"][2]["compatibility_baseline"]["efforts"] = [["high"]]
         with self.assertRaises(config.ConfigError):
             config.validate_shipped_models(malformed)
 
@@ -194,7 +194,7 @@ class AdvisorConfigTests(unittest.TestCase):
         os.chmod(self.paths.catalog, 0o600)
         resolved = config.resolve_selection("standard", paths=self.paths)
         self.assertEqual(
-            resolved["model"], "gpt-5.6-terra",
+            resolved["model"], "gpt-6-astra",
             "normal tiers must ignore stale saved selections",
         )
         with self.assertRaises(config.ConfigError):
@@ -206,18 +206,18 @@ class AdvisorConfigTests(unittest.TestCase):
         config.live_config_path = lambda: candidate
         try:
             candidate.write_text(
-                "[standard]\nmodel = \"future/provider-2049\"\neffort = \"max\"\n"
-                "[specialist]\nmodel = \"gpt-6-astra\"\neffort = \"high\"\n"
+                "[advisor]\nmodel = \"gpt-6-astra\"\n"
+                "effort_ladder = [\"low\", \"medium\", \"high\", \"xhigh\"]\n"
             )
             live = config.load_live_config()
-            self.assertEqual(live["pairs"]["standard"], {"model": "future/provider-2049", "effort": "max"})
+            self.assertEqual(live["pairs"]["low"], {"model": "gpt-6-astra", "effort": "low"})
             self.assertTrue(live["source_revision"].startswith("sha256:"))
-            candidate.write_text("[standard]\nmodel = \"a\"\neffort = \"high\"\n")
+            candidate.write_text("[advisor]\nmodel = \"a\"\neffort_ladder = [\"low\", \"medium\", \"high\", \"xhigh\"]\n")
             with self.assertRaisesRegex(config.ConfigError, "advisor.toml"):
                 config.load_live_config()
             candidate.write_text(
-                "[standard]\nmodel = \"a\"\neffort = \"bad\"\n"
-                "[specialist]\nmodel = \"b\"\neffort = \"high\"\n"
+                "[advisor]\nmodel = \"gpt-6-astra\"\n"
+                "effort_ladder = [\"low\", \"bad\", \"high\", \"xhigh\"]\n"
             )
             with self.assertRaisesRegex(config.ConfigError, "advisor.toml"):
                 config.load_live_config()
@@ -234,8 +234,7 @@ class AdvisorConfigTests(unittest.TestCase):
         candidate = Path(self.tmp.name) / "advisor.toml"
         target = Path(self.tmp.name) / "target.toml"
         target.write_text(
-            '[standard]\nmodel = "gpt-5.6-terra"\neffort = "high"\n'
-            '[specialist]\nmodel = "gpt-5.6-sol"\neffort = "high"\n',
+            '[advisor]\nmodel = "gpt-6-astra"\neffort_ladder = ["low", "medium", "high", "xhigh"]\n',
             encoding="utf-8",
         )
         candidate.write_bytes(target.read_bytes())
@@ -266,8 +265,7 @@ class AdvisorConfigTests(unittest.TestCase):
         original_read = config.os.read
         candidate = Path(self.tmp.name) / "advisor.toml"
         candidate.write_text(
-            '[standard]\nmodel = "gpt-5.6-terra"\neffort = "high"\n'
-            '[specialist]\nmodel = "gpt-5.6-sol"\neffort = "high"\n',
+            '[advisor]\nmodel = "gpt-6-astra"\neffort_ladder = ["low", "medium", "high", "xhigh"]\n',
             encoding="utf-8",
         )
         config.live_config_path = lambda: candidate

@@ -39,9 +39,10 @@ Codex Advisor triggers only on material technical decisions:
 
 Routine work (such as factual lookups, mechanical edits, documentation formatting, and settled plans) automatically skips consultation.
 
-### 2. Dual-Tier Risk-Calibrated Roles
-- **Standard Consultation (`advisor-terra`):** Powered by `gpt-5.6-terra` / High effort for general architecture, interface design, data modeling, and generic advisor requests.
-- **Specialist Consultation (`advisor-sol`):** Powered by `gpt-5.6-sol` / High effort, reserved specifically for unresolved security or trust boundaries, irreversible data migration, or critical high-severity disagreements.
+### 2. Astra Low-First Escalation
+- **Active consultation (`advisor-astra`):** Powered by `gpt-6-astra`, starting at Low effort for material unresolved decisions.
+- **Verified escalation:** A typed adjacent request may move one checkpoint through Medium, High, and Extra High (`xhigh` at runtime); there is no same-level retry or silent model substitution.
+- **Compatibility aliases:** `advisor-terra` and `advisor-sol` normalize to Astra/Low and cannot select historical models.
 
 ### 3. Local Isolation & Zero Tools
 - Advisor processes run in a forced read-only sandbox with zero tools enabled.
@@ -50,8 +51,8 @@ Routine work (such as factual lookups, mechanical edits, documentation formattin
 
 ### 4. Transparent Chat Lifecycle
 Every consultation is surfaced directly in your chat stream with verifiable receipts:
-- `ADVISOR CALL` before launch (displaying tier, role, reason, question, and status).
-- `ADVISOR RESULT` after completion (displaying verified model, high effort, read-only isolation, recommendation, decision disposition, and rationale).
+- `ADVISOR CALL` before launch (displaying level, role, reason, question, and status).
+- `ADVISOR RESULT` after completion (displaying verified model, effort, read-only isolation, recommendation, decision disposition, and rationale).
 
 ### 5. Research-First Fallback
 When evidence in the context packet is insufficient to make a definitive choice, the advisor does not guess; it recommends a concrete research-first next step and identifies specific missing evidence under `FOLLOW-UP AREAS`.
@@ -76,7 +77,7 @@ To run Codex Advisor consultations, your local environment needs:
 - `jq` installed in your `$PATH`.
 - POSIX shell (`sh`).
 - Persisted Codex session rollout and valid `CODEX_THREAD_ID`.
-- Active OpenAI subscription with model availability for `gpt-5.6-terra` and `gpt-5.6-sol`.
+- Active OpenAI subscription with model availability for `gpt-6-astra` at the required effort.
 
 ---
 

@@ -95,8 +95,7 @@ if case == "hang":
 
 if case == "mutate-retry" and attempt == 1:
     Path(os.environ["ADVISOR_LIVE_CONFIG"]).write_text(
-        '[standard]\nmodel = "gpt-5.6-sol"\neffort = "ultra"\n\n'
-        '[specialist]\nmodel = "gpt-6-astra"\neffort = "max"\n'
+        '[advisor]\nmodel = "gpt-6-astra"\neffort_ladder = ["low", "bad", "high", "xhigh"]\n'
     )
 
 child = f"{attempt:08x}-1111-7111-8111-{attempt:012x}"
@@ -144,6 +143,7 @@ class AdvisorTransportTests(unittest.TestCase):
         self.fake.write_text(FAKE_CODEX, encoding="utf-8")
         self.fake.chmod(0o700)
         self.invocations = self.root / "invocations.json"
+        self.transport_calls = 0
         self.env = {
             **os.environ,
             "CODEX_HOME": str(self.home),
@@ -158,14 +158,11 @@ class AdvisorTransportTests(unittest.TestCase):
 
     @contextmanager
     def live_config(self, standard: dict[str, str], specialist: dict[str, str]):
-        """Edit only this test's private plugin copy."""
+        """Write one active Astra policy to this test's private plugin copy."""
         self.live_config_path.write_text(
-            "[standard]\n"
+            "[advisor]\n"
             f'model = "{standard["model"]}"\n'
-            f'effort = "{standard["effort"]}"\n\n'
-            "[specialist]\n"
-            f'model = "{specialist["model"]}"\n'
-            f'effort = "{specialist["effort"]}"\n',
+            'effort_ladder = ["low", "medium", "high", "xhigh"]\n',
             encoding="utf-8",
         )
         yield self.live_config_path
@@ -173,11 +170,15 @@ class AdvisorTransportTests(unittest.TestCase):
     def run_transport(
         self, *arguments: str, case: str = "valid", env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
+        args = list(arguments)
+        if "--checkpoint-key" not in args:
+            self.transport_calls += 1
+            args.extend(("--checkpoint-key", f"test-checkpoint-{self.transport_calls}"))
         return subprocess.run(
             [
                 "/bin/sh",
                 str(self.transport),
-                *arguments,
+                *args,
                 "--parent-thread",
                 PARENT,
                 "--sessions-dir",
@@ -251,14 +252,14 @@ class AdvisorTransportTests(unittest.TestCase):
         self.assertEqual(
             [(row["model"], row["effort"]) for row in self.rows()],
             [
-                ("gpt-5.6-terra", "high"),
-                ("gpt-5.6-sol", "high"),
-                ("gpt-5.6-terra", "high"),
-                ("gpt-5.6-terra", "high"),
+                ("gpt-6-astra", "low"),
+                ("gpt-6-astra", "low"),
+                ("gpt-6-astra", "low"),
+                ("gpt-6-astra", "low"),
             ],
         )
 
-    def test_configured_future_model_and_preset_do_not_change_default(self) -> None:
+    def test_legacy_preset_cannot_change_active_astra_policy(self) -> None:
         self.qualify("future/model", "max")
         config.save_preset(
             "future",
@@ -269,68 +270,52 @@ class AdvisorTransportTests(unittest.TestCase):
             "--tier", "standard", "--preset", "future",
             env={"FAKE_CODEX_VERSION": "codex-cli 0.154.0"},
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        expected_revision = config.load_settings(self.paths)["revision"]
-        selection = json.loads(result.stdout)["selection"]
-        self.assertEqual(selection["revision"], expected_revision)
-        self.assertEqual(selection["source_revision"], f"legacy-settings:{expected_revision}")
-        self.assertEqual(
-            (self.rows()[0]["model"], self.rows()[0]["effort"]), ("future/model", "max")
-        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.rows(), [])
         self.assertEqual(
             config.load_settings(self.paths)["selections"]["standard"]["model"],
-            "gpt-5.6-terra",
-        )
-        failed = self.run_transport(
-            "--tier", "standard", "--preset", "future", case="wrong-model"
-        )
-        self.assertNotEqual(failed.returncode, 0)
-        failed_selection = json.loads(failed.stdout)["selection"]
-        self.assertEqual(failed_selection["revision"], expected_revision)
-        self.assertEqual(
-            failed_selection["source_revision"], f"legacy-settings:{expected_revision}"
+            "gpt-6-astra",
         )
 
     def test_live_astra_and_independent_effort_launch_without_catalog_or_state(self) -> None:
         with self.live_config(
-            {"model": "gpt-6-astra", "effort": "max"},
-            {"model": "gpt-5.6-sol", "effort": "low"},
+            {"model": "gpt-6-astra", "effort": "low"},
+            {"model": "gpt-6-astra", "effort": "low"},
         ):
             standard = self.run_transport("--tier", "standard")
             specialist = self.run_transport("--tier", "specialist")
         self.assertEqual((standard.returncode, specialist.returncode), (0, 0))
         self.assertEqual(
             [(row["model"], row["effort"]) for row in self.rows()],
-            [("gpt-6-astra", "max"), ("gpt-5.6-sol", "low")],
+            [("gpt-6-astra", "low"), ("gpt-6-astra", "low")],
         )
         self.assertFalse(self.paths.root.exists(), "live config must not create state")
         selection = json.loads(standard.stdout)["selection"]
         self.assertEqual(selection["source"], "live-config")
         self.assertTrue(selection["source_revision"].startswith("sha256:"))
 
-    def test_live_future_selector_needs_no_catalog_or_canary_and_invalid_toml_launches_nothing(self) -> None:
+    def test_non_astra_active_policy_and_malformed_toml_launch_nothing(self) -> None:
         with self.live_config(
-            {"model": "future/provider-2049", "effort": "ultra"},
-            {"model": "gpt-5.6-sol", "effort": "high"},
+            {"model": "future/provider-2049", "effort": "low"},
+            {"model": "gpt-6-astra", "effort": "low"},
         ):
             future = self.run_transport("--tier", "standard")
-        self.assertEqual(future.returncode, 0, future.stderr)
-        self.assertEqual(self.rows()[0]["model"], "future/provider-2049")
+        self.assertNotEqual(future.returncode, 0)
+        self.assertEqual(self.rows(), [])
         self.live_config_path.write_text(
-            "[standard]\nmodel = \"bad\"\neffort = \"high\"\n"
+            "[advisor]\nmodel = \"bad\"\neffort_ladder = [\"low\", \"medium\", \"high\", \"xhigh\"]\n"
         )
         invalid = self.run_transport("--tier", "standard")
         self.assertNotEqual(invalid.returncode, 0)
         self.assertIn("advisor.toml", invalid.stderr)
-        self.assertEqual(len(self.rows()), 1, "invalid config must fail before child launch")
+        self.assertEqual(len(self.rows()), 0, "invalid config must fail before child launch")
         self.live_config_path.write_text(
-            '[standard]\nmodel = "bad selector!"\neffort = "high"\n\n'
-            '[specialist]\nmodel = "gpt-5.6-sol"\neffort = "high"\n'
+            '[advisor]\nmodel = "gpt-6-astra"\neffort_ladder = ["low", "bad", "high", "xhigh"]\n'
         )
         invalid_selector = self.run_transport("--tier", "standard")
         self.assertNotEqual(invalid_selector.returncode, 0)
         self.assertIn("advisor.toml", invalid_selector.stderr)
-        self.assertEqual(len(self.rows()), 1, "invalid selector must fail before child launch")
+        self.assertEqual(len(self.rows()), 0, "invalid effort must fail before child launch")
 
     def test_saved_selection_is_ignored_and_mixed_route_is_rejected(self) -> None:
         config.add_manual_candidate("future/model", paths=self.paths)
@@ -343,13 +328,12 @@ class AdvisorTransportTests(unittest.TestCase):
         self.assertNotEqual(mixed.returncode, 0)
         self.assertEqual(
             [(row["model"], row["effort"]) for row in self.rows()],
-            [("gpt-5.6-terra", "high")],
+            [("gpt-6-astra", "low")],
         )
 
     def test_legacy_role_alias_cannot_bypass_invalid_active_policy(self) -> None:
         self.live_config_path.write_text(
-            '[standard]\nmodel = "gpt-5.6-terra"\neffort = "high"\n\n'
-            '[specialist]\nmodel = "gpt-5.6-sol"\neffort = "high"\n',
+            '[advisor]\nmodel = "gpt-5.6-terra"\neffort_ladder = ["low", "medium", "high", "xhigh"]\n',
             encoding="utf-8",
         )
         result = self.run_transport("--role", "advisor-terra")
@@ -394,7 +378,7 @@ class AdvisorTransportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             [(row["model"], row["effort"]) for row in self.rows()],
-            [("gpt-5.6-terra", "high")],
+            [("gpt-6-astra", "low")],
         )
 
     def test_pristine_defaults_launch_on_newer_cli_without_state_or_canary(self) -> None:
@@ -417,7 +401,7 @@ class AdvisorTransportTests(unittest.TestCase):
             timeout=5,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.rows()[0]["model"], "gpt-5.6-terra")
+        self.assertEqual(self.rows()[0]["model"], "gpt-6-astra")
         self.assertFalse(self.paths.root.exists())
 
     def test_default_runtime_mismatch_still_rejects_actual_consultation(self) -> None:
@@ -472,7 +456,7 @@ class AdvisorTransportTests(unittest.TestCase):
             [row["outcome"] for row in envelope["attempts"]],
             ["rejected_response"],
         )
-        self.assertNotIn("fresh corrective retry", result.stderr)
+        self.assertNotIn("second consultation attempt", result.stderr)
 
     def test_runtime_mismatch_reroute_and_tool_use_are_terminal(self) -> None:
         for case in ("wrong-model", "wrong-effort", "reroute", "tool"):
