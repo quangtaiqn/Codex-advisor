@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +36,18 @@ class AdvisorChainTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    @unittest.skipIf(os.name == "nt", "WSL path semantics require POSIX")
+    def test_wsl_windows_home_uses_private_ledger_without_weaker_permissions(self) -> None:
+        windows_home = Path("/mnt/c") / Path(self.temporary.name).name
+        with patch.dict(os.environ, {"WSL_DISTRO_NAME": "Ubuntu"}), patch.object(
+            chain.Path, "home", return_value=Path(self.temporary.name)
+        ):
+            root = chain._default_root(windows_home)
+            self.assertEqual(root, Path(self.temporary.name) / ".codex-advisor" / "chains")
+            store = chain.ChainStore(root)
+            self.assertEqual(store.reserve("wsl/checkpoint", policy_digest=POLICY, packet_digest=PACKET, level="low")["action"], "launch")
+            self.assertEqual(root.parent.stat().st_mode & 0o077, 0)
 
     def reserve(self, key: str = "task/checkpoint-1", *, level: str = "low", packet: str = PACKET, authorize: bool = False):
         return self.store.reserve(
@@ -105,6 +119,21 @@ class AdvisorChainTests(unittest.TestCase):
             "task/checkpoint-1", policy_digest=POLICY, level="low", failure_code="timed_out"
         )
         self.assertEqual(uncertain["status"], "uncertain")
+        with self.assertRaises(chain.ChainError):
+            self.reserve()
+
+    def test_failed_launch_is_durable_and_blocks_replay(self) -> None:
+        self.reserve()
+        failed = self.store.mark_failed(
+            "task/checkpoint-1",
+            policy_digest=POLICY,
+            level="low",
+            failure_code="launch_failed",
+        )
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["levels"]["low"]["status"], "failed")
+        self.assertEqual(failed["levels"]["low"]["failure_code"], "launch_failed")
+        self.assertEqual(self.store.inspect("task/checkpoint-1")["status"], "failed")
         with self.assertRaises(chain.ChainError):
             self.reserve()
 

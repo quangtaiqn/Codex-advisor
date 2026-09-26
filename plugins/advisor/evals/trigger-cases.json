@@ -2,7 +2,7 @@
   "version": 1,
   "cases": [
     {"id":"consult-architecture","class":"consult","expected":"consult","risk":"standard","prompt":"Choose a bounded service architecture for this module; its interfaces and data model are already understood."},
-    {"id":"consult-interface","class":"consult","expected":"consult","risk":"standard","prompt":"Targeted evidence has settled compatibility for this cross-boundary cache/API interface; choose the bounded interface."},
+    {"id":"skip-resolved-interface","class":"skip","expected":"skip","risk":"standard","prompt":"Targeted evidence has settled compatibility for this cross-boundary cache/API interface; choose the bounded interface."},
     {"id":"consult-diagnosis","class":"consult","expected":"consult","risk":"standard","prompt":"Ask for a generic advisor opinion on this material data-model choice after the evidence settled the diagnosis."},
     {"id":"consult-security","class":"consult","expected":"consult","risk":"specialist","prompt":"Targeted evidence still leaves unresolved whether a cross-module authorization migration's compatibility and concurrency boundary can recover without losing user data."},
     {"id":"skip-factual","class":"skip","expected":"skip","risk":"standard","prompt":"Report the manifest version and custom role name from these files."},

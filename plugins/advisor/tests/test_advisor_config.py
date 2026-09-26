@@ -168,7 +168,7 @@ class AdvisorConfigTests(unittest.TestCase):
     def test_shipped_catalog_rejects_malformed_defaults_and_baselines(self) -> None:
         shipped = config.load_shipped_models()
         malformed = json.loads(json.dumps(shipped))
-        malformed["defaults"]["standard"]["model"] = "gpt-6-astra"
+        malformed["defaults"]["standard"]["model"] = "unknown/model"
         with self.assertRaises(config.ConfigError):
             config.validate_shipped_models(malformed)
         malformed = json.loads(json.dumps(shipped))
@@ -460,7 +460,14 @@ class AdvisorConfigTests(unittest.TestCase):
 
     def test_models_lists_shipped_catalog_and_local_candidates(self) -> None:
         config.add_manual_candidate("future/model", paths=self.paths)
-        env = {**os.environ, "CODEX_HOME": str(self.codex_home)}
+        env = {
+            **os.environ,
+            "HOME": self.tmp.name,
+            "CODEX_HOME": str(self.codex_home),
+            "WSL_DISTRO_NAME": "",
+            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_TRANSPORT_CONFIG": str(self.codex_home / "no-wsl-transport-config.json"),
+        }
         result = subprocess.run(
             [str(MODULE.parent / "advisor-config.sh"), "--json", "models"],
             env=env,
@@ -571,7 +578,11 @@ class AdvisorConfigTests(unittest.TestCase):
         fake.chmod(0o700)
         env = {
             **os.environ,
+            "HOME": self.tmp.name,
             "CODEX_HOME": str(self.codex_home),
+            "WSL_DISTRO_NAME": "",
+            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_TRANSPORT_CONFIG": str(self.codex_home / "no-wsl-transport-config.json"),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
         }
         result = subprocess.run(

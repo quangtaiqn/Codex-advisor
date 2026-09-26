@@ -10,8 +10,10 @@ permits only `medium`, `high`, and `extra_high` (`xhigh`) after an explicit
 adjacent escalation request. No Terra/Sol active selection, raw model/effort
 override, cloud backend, `mcp.json`, database, or API billing path is added.
 
-Consult only when unresolved uncertainty remains after a cheap local check and
-the wrong decision has material impact. Skip routine/factual/status/mechanical
+Use targeted evidence from a cheap local check first. If it leaves unresolved a
+material compatibility or concurrency question or a competing diagnosis, consult only
+when the wrong decision has material impact; other decisions use the same
+uncertainty-and-impact gate. Skip routine/factual/status/mechanical
 work, settled decisions, implementation already started, completion/reassurance,
 explicit no-delegation, and borderline cases. One checkpoint has one opportunity;
 each effort is single-pass, there is no same-effort schema retry, no parallel or
@@ -20,12 +22,49 @@ recursive advisor, and no automatic completion consultation.
 The active transport accepts `--level` plus an opaque `--checkpoint-key`. Legacy
 `--tier`/`--role` names, if retained, are migration aliases into the same
 Astra-low-first chain and never select old models. Chain state reserves the level
-before launch, persists packet/policy digests atomically under private Codex-home
-state, and resumes from the recorded next action after restart. If restart finds
-a reserved level without terminal evidence, the reconciliation command marks it
-uncertain and blocks; it never replays that level. Only a completed level with
-verified adjacent escalation can continue the chain. Usage journal clear/prune
-never deletes the safety ledger.
+before launch and persists packet/policy digests atomically under an owner-only
+chain root. Normally this is `$CODEX_HOME/advisor/chains` (or
+`$HOME/.codex/advisor/chains` when `CODEX_HOME` is unset). In WSL, when
+`CODEX_HOME` resolves below a Windows-mounted `/mnt/<drive>/...` path, the chain
+root moves to `$HOME/.codex-advisor/chains` so DrvFS permission reporting cannot
+weaken the owner-only check. If a ledger already exists at the Windows-mounted
+root, the runtime fails closed and requires an explicit migration; it never
+silently copies, merges, or deletes ledger state. Record the resolved root for
+recovery and preserve it when restoring the plugin cache. After restart, resume
+from the recorded next action. If a reserved level has no terminal evidence, the
+reconciliation command marks it uncertain and blocks; it never replays that
+  level. Only a completed level with verified adjacent escalation can continue
+  the chain. The primary agent continues a valid adjacent escalation automatically
+  in the same turn: it confirms `advisor_chain.py inspect` reports the current level
+  completed and `next_action: reserve:<next-level>`, then invokes the next level once
+  with the same checkpoint key and `--chain-authorized`. It repeats only for validated
+  adjacent requests, stopping on `next_level: null`, any unavailable/uncertain/failed
+  state, inconsistent evidence, or after `extra_high`. The shell wrapper still starts
+  one child per invocation; it does not implement the escalation loop. Usage journal
+  clear/prune never deletes the safety ledger.
+
+### CP4-C synthetic qualification
+
+Run this mode only for an explicitly user-approved qualification campaign; it is
+never a normal Advisor route. Set
+`ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION=1` and pass
+`--qualification-scenario full-adjacent-escalation-v1` with one UUIDv4
+`--qualification-run-id`. Reuse that run ID and the same opaque checkpoint key
+for each adjacent level. The wrapper uses the standard Astra resolver, runtime
+inspector, response validator, and chain implementation, while selecting the
+separate private root `$HOME/.codex-advisor/qualification-<run-id>`. Its accepted
+envelope carries `synthetic_scenario: true`; retain that marker and the scenario
+and run IDs with the receipt.
+
+The primary continues only after validating the actual model response and
+runtime evidence, then inspecting the same qualification ledger for the exact
+adjacent `next_action`. Pass `--chain-authorized` only for that verified next
+level. Stop on `next_level: null`, invalid evidence or ledger state, and after
+`extra_high`; do not retry. The scenario asks each live child to exercise the
+next adjacent level, but it cannot force the child response or edit a receipt or
+ledger. A passing C proves only runtime-backed orchestration for this synthetic
+qualification scenario. It does not prove that an advisor would request all
+three escalations for a real technical issue.
 
 Advisor provides pre-decision advice only. It does not implement, route
 implementation, perform final review, or replace root authority. The root performs
@@ -38,6 +77,35 @@ tools: it does not inspect files, fetch the web, or conduct independent research
 The root may assign bounded evidence gathering to separate research workers before assembling the decision packet; the consulted advisor still uses zero tools and never delegates.
 
 ## Install and verify the companion roles
+
+## Persistent Windows-to-WSL transport
+
+This adapter supports a Windows-hosted Codex CLI or Codex Desktop parent that runs
+the installed plugin through WSL Ubuntu and launches the Windows Codex CLI from
+there. From the Windows parent, invoke the installed plugin's
+`scripts/install-wsl-transport.sh` once inside that distribution. The installer
+locates the current Windows Node/Codex package and sessions directory, then stores
+an owner-only adapter plus a hash-checked configuration in the WSL home at
+`~/.codex-advisor/transport`. Run it again after installing a plugin candidate;
+the installer preserves configuration backups and does not touch the checkpoint
+ledger. It never reads or copies authentication material.
+
+Use the installed plugin path returned by `codex plugin list --json`; convert the
+Windows path to its WSL mount path before invoking the script. For example, the
+Windows PowerShell launcher has this form:
+
+```powershell
+wsl.exe --distribution Ubuntu --exec /bin/sh /mnt/c/Users/<user>/.codex/plugins/cache/advisor/advisor/<version>/scripts/install-wsl-transport.sh
+```
+
+After installation, run `advisor-config.sh --json doctor` through the same WSL
+distribution. Doctor must report `source: installed-wsl-bridge`, the adapter path,
+and the configured Windows sessions directory. Run transport commands from the
+installed plugin root. If a Windows-hosted parent launches WSL, pass its actual
+`CODEX_THREAD_ID` explicitly as an `env` argument to `wsl.exe`; do not depend on
+`WSLENV` or assume the variable is inherited. Keep packet text on UTF-8 stdin. A
+missing parent ID, invalid bridge hash, inaccessible sessions directory, or failed
+CLI preflight is unavailable and must stop before checkpoint reservation.
 
 ## Live configuration and advanced tools
 
@@ -144,8 +212,12 @@ installed-plugin wrapper through the shell tool's
 not first attempt it inside the parent sandbox, where nested Codex app-server
 initialization is blocked. This elevation launches only the fixed wrapper. The child
 remains forced to `--sandbox read-only` and must pass runtime inspection. The wrapper
-resolves the live model and effort once, forces a read-only sandbox, and creates a
-distinct persisted consultation thread:
+resolves the live model and effort once, runs a bounded `--version` preflight before
+reserving the checkpoint, forces a read-only sandbox, and creates a distinct persisted
+consultation thread. On WSL, the installed private bridge is resolved from its
+hash-checked configuration; the same verified executable is used for the child
+launch, and its Windows sessions path is passed to both runtime inspectors. A failed
+preflight stops before checkpoint reservation:
 
 ```sh
 /bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --level low --checkpoint-key <opaque-key> <<'ADVISOR_PACKET'
@@ -154,6 +226,12 @@ DECISION
 ADVISOR_PACKET
 # Resume with the same checkpoint key only after a verified adjacent escalation.
 ```
+
+For a Windows-hosted parent, use `wsl.exe --distribution Ubuntu --exec env
+"CODEX_THREAD_ID=<verified-parent-id>" /bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh ...`.
+Supply the packet through UTF-8 stdin. The `CODEX_THREAD_ID` value is the parent
+thread ID inspected in the Windows-hosted Codex runtime; it is not the child ID or a
+session ID. A native WSL parent calls the wrapper directly with its own environment.
 
 ### Deferred shell-tool result handoff
 
@@ -245,8 +323,9 @@ the exact frozen effort, read-only isolation, and
 zero tool use; it is not a metadata fallback. Wrapper-owned semantic validation
 accepts only schema-valid, nonblank fields and deterministically renders the exact
 canonical eight-line receipt above. A runtime-valid response-validation failure emits
-only a redacted failure `class` and `field`, then stops. A consultation launches at
-most one child for the reserved level; there is no corrective retry or retry prompt.
+only a redacted failure `class` and `field`, then stops. A consultation launches at most one child
+per reserved level; there is no same-level replacement, corrective retry, or
+retry prompt.
 Packet, launcher, event, identity, same-session, runtime, wrong-model,
 wrong-effort, non-read-only, normalization, or tool-use failure is terminal and never
 retries. A second response-validation failure is unavailable. Rejected content is
@@ -262,10 +341,10 @@ record `accept`, `modify`, or `reject`. For a research-first response, the conci
 research-first plan is the recommendation and `accept` means accepting that plan,
 not a technical choice the advisor did not make. The advisor is never authoritative.
 
-After a valid, runtime-inspected result, any research or brainstorming follow-up
-remains primary-agent work outside this consultation. An unavailable result cannot
-be rescued by a replacement advisor or same-checkpoint follow-up, and the advisor
-may not spawn or conduct that work.
+After a valid, runtime-inspected result, any research or brainstorming follow-up remains
+primary-agent work outside this consultation. An unavailable result cannot be rescued by
+a replacement advisor or same-checkpoint follow-up, and the advisor may not spawn or
+conduct that work.
 
 Resolve the active level with the installed helper. Immediately before invoking the
 consultation transport, the root emits the actual resolved metadata:
@@ -363,8 +442,8 @@ It never changes sessions or Codex configuration.
 
 ## Trigger evaluation
 
-There is no automatic completion consultation. Completion, final diff review, and
-release verification remain owned by the primary agent and the separate
+There is no automatic completion consultation. The completion, final diff review,
+and release verification remain owned by the primary agent and the separate
 `final-review` workflow; a new advisor chain requires a materially new checkpoint
 and bounded uncertainty.
 

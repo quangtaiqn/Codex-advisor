@@ -75,13 +75,13 @@ does not run a background deletion service.
 ## Response contract
 
 The wrapper accepts model output only as one object matching its installed JSON Schema,
-the sole supported wrapper model-output format. Direct/native role invocation is
-unsupported and is not schema-validated. After runtime inspection, wrapper-owned
-semantic validation renders the accepted object as the canonical eight-line
-`ADVISOR RESPONSE` receipt. Each level is one pass: response/schema/runtime failures
-are terminal, never corrected by a retry, and never reopen a consumed checkpoint.
-Rejected content remains private to the mode-0700 consultation directory and is
-removed by unconditional cleanup.
+the sole supported wrapper model-output format. Direct/native role invocation is unsupported
+and is not schema-validated. After runtime inspection, wrapper-owned semantic validation
+renders the accepted object as the canonical eight-line `ADVISOR RESPONSE` receipt.
+A response-validation failure emits only a redacted failure class and field. Each level
+launches at most one child: response/schema/runtime failures are terminal, never corrected
+by a retry, and never reopen a consumed checkpoint. Rejected content remains private to
+the mode-0700 consultation directory and is removed by unconditional cleanup.
 
 When the Codex shell tool returns a nonempty `session_id`, that is nonterminal
 progress, not an Advisor result. The caller drains that exact handle with

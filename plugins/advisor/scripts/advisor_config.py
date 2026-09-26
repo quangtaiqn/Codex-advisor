@@ -41,6 +41,7 @@ from advisor_policy import (
     resolve_selection as resolve_policy_selection,
 )
 from advisor_process import JsonRpcProcess, ProcessUnavailable, terminate_owned
+import advisor_transport
 
 SCHEMA_VERSION = 1
 TRANSPORT_CONTRACT_VERSION = "1.4"
@@ -272,7 +273,7 @@ def load_live_config() -> dict[str, Any]:
     try:
         policy = parse_active_config(value)
     except PolicyError as exc:
-        raise ConfigError(str(exc)) from exc
+        raise ConfigError(f"advisor.toml: {exc}") from exc
     return {
         "path": str(path),
         "source_revision": "sha256:" + hashlib.sha256(raw).hexdigest(),
@@ -1202,9 +1203,10 @@ def _pair_is_compatible(pair: Mapping[str, str], catalog: Mapping[str, Any]) -> 
 
 def current_codex_version(*, timeout_seconds: float = 5.0) -> str:
     """Return the exact installed CLI version using a bounded local probe."""
+    codex_path = _resolve_codex_executable()
     try:
         returncode, output = _run_bounded_output(
-            ["codex", "--version"],
+            [codex_path, "--version"],
             timeout_seconds=timeout_seconds,
             max_bytes=4096,
         )
@@ -1219,6 +1221,48 @@ def current_codex_version(*, timeout_seconds: float = 5.0) -> str:
     if not version or "\n" in version or "\r" in version:
         raise ConfigError("Codex CLI version is unavailable")
     return version
+
+
+def _resolve_codex_executable() -> str:
+    explicit = os.environ.get("ADVISOR_CODEX_BIN")
+    if explicit:
+        path = Path(explicit)
+        if path.is_absolute() and path.is_file() and not path.is_symlink() and os.access(path, os.X_OK):
+            return str(path)
+        raise ConfigError("configured Codex executable is unavailable")
+    if os.environ.get("WSL_DISTRO_NAME"):
+        try:
+            config_path = advisor_transport.default_config_path()
+        except advisor_transport.TransportConfigError as exc:
+            raise ConfigError("configured WSL Codex transport is unavailable") from exc
+        if config_path.exists() or config_path.is_symlink():
+            try:
+                return advisor_transport.resolve("codex_executable")
+            except advisor_transport.TransportConfigError as exc:
+                raise ConfigError("configured WSL Codex transport is unavailable") from exc
+    path = shutil.which("codex")
+    if not path:
+        raise ConfigError("Codex CLI executable is unavailable")
+    return path
+
+
+def _codex_transport_source() -> tuple[str | None, str, str | None]:
+    explicit = os.environ.get("ADVISOR_CODEX_BIN")
+    if explicit:
+        return explicit, "explicit", None
+    if os.environ.get("WSL_DISTRO_NAME"):
+        try:
+            config_path = advisor_transport.default_config_path()
+        except advisor_transport.TransportConfigError:
+            return None, "invalid-wsl-config", None
+        if config_path.exists() or config_path.is_symlink():
+            try:
+                config = advisor_transport.load_transport_config(config_path)
+                return config["adapter_path"], "installed-wsl-bridge", config["sessions_directory"]
+            except advisor_transport.TransportConfigError:
+                return None, "invalid-wsl-config", None
+    path = shutil.which("codex")
+    return (path, "path", None) if path else (None, "missing", None)
 
 
 def set_selection(
@@ -1368,8 +1412,9 @@ class AppServerDiscovery:
     def _connection(self) -> JsonRpcProcess:
         remaining = max(0.1, min(5.0, float(self.deadline_seconds)))
         try:
+            codex_executable = _resolve_codex_executable()
             returncode, output = _run_bounded_output(
-                ["codex", "app-server", "--help"],
+                [codex_executable, "app-server", "--help"],
                 timeout_seconds=remaining,
                 max_bytes=200_000,
             )
@@ -1386,7 +1431,7 @@ class AppServerDiscovery:
         scratch = tempfile.mkdtemp(prefix="advisor-discovery-")
         os.chmod(scratch, 0o700)
         return JsonRpcProcess(
-            ["codex", "app-server", "--ignore-user-config", "--ignore-rules"],
+            [codex_executable, "app-server", "--ignore-user-config", "--ignore-rules"],
             deadline_seconds=self.deadline_seconds,
             cwd=scratch,
             on_status=self.on_status,
@@ -1922,10 +1967,12 @@ def _catalog_view(catalog: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _doctor_probe(argv: Sequence[str], *, max_bytes: int = 4096) -> dict[str, Any]:
+def _doctor_probe(
+    argv: Sequence[str], *, max_bytes: int = 4096, timeout_seconds: float = 2.0
+) -> dict[str, Any]:
     try:
         returncode, output = _run_bounded_output(
-            argv, timeout_seconds=2.0, max_bytes=max_bytes
+            argv, timeout_seconds=timeout_seconds, max_bytes=max_bytes
         )
     except ConfigError:
         return {"status": "unavailable"}
@@ -1966,7 +2013,14 @@ def _parent_runtime_report(
         return {"status": "unavailable", "reason_type": "parent_runtime_unavailable"}
     if on_status is not None:
         on_status("inspecting parent runtime evidence")
-    probe = _doctor_probe(["/bin/sh", str(helper)])
+    _, _, sessions_directory = _codex_transport_source()
+    probe_argv = ["/bin/sh", str(helper)]
+    if sessions_directory:
+        probe_argv.extend(("--sessions-dir", sessions_directory))
+    # The session inspector scans the host's full rollout tree. A valid parent
+    # can take longer than the short local dependency probes, especially via WSL
+    # when the session directory is on a Windows mount.
+    probe = _doctor_probe(probe_argv, timeout_seconds=10.0)
     if probe.get("status") != "available":
         return {"status": "unavailable", "reason_type": "parent_runtime_unavailable"}
     try:
@@ -2009,15 +2063,18 @@ def doctor_report(
         catalog = None
         errors.append(str(exc))
 
-    codex_path = shutil.which("codex")
+    codex_path, transport_source, sessions_directory = _codex_transport_source()
     jq_path = shutil.which("jq")
     python_path = sys.executable if Path(sys.executable).is_file() else None
     if on_status is not None:
         on_status("probing local dependencies")
-    cli = _doctor_probe(["codex", "--version"]) if codex_path else {"status": "missing"}
+    cli = _doctor_probe([codex_path, "--version"]) if codex_path else {"status": "missing"}
+    cli.update({"path": codex_path, "source": transport_source})
+    if sessions_directory:
+        cli["sessions_directory"] = sessions_directory
     discovery = {"status": "unavailable"}
     if codex_path:
-        help_probe = _doctor_probe(["codex", "app-server", "--help"], max_bytes=200_000)
+        help_probe = _doctor_probe([codex_path, "app-server", "--help"], max_bytes=200_000)
         flags = help_probe.get("detail", "")
         discovery = {
             "status": "supported"
@@ -2139,7 +2196,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "status": "ok",
                     "live_config": live,
-                    "selections": live["pairs"],
+                    "selections": {tier: live["pairs"][legacy_tier_level(tier)] for tier in sorted(TIERS)},
                     "selection_revision": live["source_revision"],
                     "deadline_seconds": deadline_seconds,
                     "usage_journal_enabled": journal_enabled,

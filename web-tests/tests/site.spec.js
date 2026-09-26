@@ -203,7 +203,7 @@ test('claim surface matches the validated listing', async ({ page }) => {
   expect(body).toContain('extra_high');
   expect(body).toContain('maps to xhigh');
   expect(body).toContain('subject to account and runtime availability');
-  expect(body).toContain('plugin updates may replace edits to the bundled file.');
+  expect(body).toContain('plugin updates may replace the bundled file.');
   expect(body).toContain('drain the nonterminal shell handoff');
   expect(body).toContain('exactly one schema-v3 result envelope');
   expect(body).toContain('retains the 1.4.4 result-delivery repair without adding fallback');
@@ -233,8 +233,8 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('advisor.toml');
   expect(support).toContain('two directories above');
   expect(support).toContain('skills/consultation/SKILL.md');
-  expect(support).toContain('Edit that bundled file in place');
-  expect(support).toContain('do not copy it');
+  expect(support).toContain('Legacy role names are aliases only');
+  expect(support).toContain('An update or reinstall may replace the bundled file.');
   expect(support).toContain('Invalid TOML');
   expect(support).toContain('unsupported levels');
   expect(support).toContain('advisor-astra');
@@ -242,7 +242,7 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('low');
   expect(support).toContain('extra_high');
   expect(support).toContain('does not silently fall back');
-  expect(support).toContain('may replace edits');
+  expect(support).toContain('There is no GUI settings screen in the normal flow.');
   expect(support).toContain('ADVISOR DECISION');
   expect(support).toContain('ADVISOR CALL');
   expect(support).toContain('ADVISOR RESULT');
@@ -250,8 +250,8 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('nonterminal shell');
   expect(support).toContain('write_stdin');
   expect(support).toContain('exactly one schema-v3 envelope');
-  expect(support).toContain('does not add model fallback');
-  expect(support).toContain('response validation stops the pass');
+  expect(support).toContain('does not replay a consumed level or add model fallback');
+  expect(support).toContain('Response validation stops the pass');
   expect(support).toContain('does not launch a corrective retry');
   expect(support).not.toContain('install-agents.sh');
   expect(support).not.toContain('sh plugins/advisor/');

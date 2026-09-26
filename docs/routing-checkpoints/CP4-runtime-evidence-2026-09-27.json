@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "campaign": "CP4 runtime escalation verification",
+  "captured_on": "2026-09-27",
+  "local_audit_only": true,
+  "sharing_policy": "Redact parent_thread_id, child_thread_id, consultation_id, chain_id, attempt_id, checkpoint digests, and local paths before external sharing. This manifest contains no prompts, responses, secrets, or raw rollout content.",
+  "candidate": {
+    "advisor_plugin_version": "1.4.5",
+    "codex_cli_version": "0.155.0",
+    "transport": "installed-wsl-bridge",
+    "adapter_sha256": "35057bb567c0bfc46c39f686532347a0538496fc7d1c2bbca006dd91e9c7862a",
+    "plugin_tree_sha256": "7016ebc61abe1b4295083936f33ef649840e2611bfd59549bcf0c88ca4b40de1",
+    "plugin_tree_digest_definition": "SHA-256 over UTF-8 bytes of all regular files recursively: normalize relative paths to '/', sort full path<TAB>lowercase-file-SHA256 rows using ordinal string order, join rows with LF, and append one final LF.",
+    "source_cache_file_count": 45,
+    "source_cache_files_match": true,
+    "run_advisor_sha256": "D5FE86F37D7B30BE802EB9B84A6389E411E72FFB926FB4AF6B75C8934532D37E",
+    "policy_digest": "sha256:4c39799c6d4eb37af753c29d8168fa65452bde14a0ce7bfb8cca4cb81ca5f7a6"
+  },
+  "quota": {
+    "approved_total_child_cap": 26,
+    "A_B_approved_child_cap": 16,
+    "A_cap": 8,
+    "B_cap": 8,
+    "C_cap": 8,
+    "CP5_cap": 2,
+    "A_children_used": 7,
+    "B_children_used": 2,
+    "C_children_used": 8,
+    "CP5_children_used": 2,
+    "total_children_used": 19,
+    "failed_preflights_launched_child": false
+  },
+  "A_effort_canaries": {
+    "case_kind": "compatibility-canary",
+    "cli": {
+      "parent_thread_id": "01a0defe-c1d8-7032-b509-3452a55d6771",
+      "efforts": {
+        "low": {"status": "pass", "model": "gpt-6-astra", "effort": "low", "child_thread_id": null, "lineage_note": "Compatibility receipt did not return the child identity."},
+        "medium": {"status": "pass", "model": "gpt-6-astra", "effort": "medium", "child_thread_id": null, "lineage_note": "Compatibility receipt did not return the child identity."},
+        "high": {"status": "pass", "model": "gpt-6-astra", "effort": "high", "child_thread_id": null, "lineage_note": "Compatibility receipt did not return the child identity."},
+        "xhigh": {"status": "pass", "model": "gpt-6-astra", "effort": "xhigh", "child_thread_id": null, "lineage_note": "Compatibility receipt did not return the child identity."}
+      },
+      "result": "4/4 passed; selected=false; catalog is pair-keyed and does not preserve host/run lineage."
+    },
+    "desktop": {
+      "parent_thread_id": "01a0de62-021a-7431-8bbc-13d5b6de30a2",
+      "efforts": {
+        "low": {"status": "blocked_before_child", "model": "gpt-6-astra", "effort": "low", "child_thread_id": null, "reason": "Codex home directory was missing; no child launched."},
+        "medium": {"status": "pass", "model": "gpt-6-astra", "effort": "medium", "child_thread_id": null, "lineage_note": "Compatibility receipt did not return the child identity."},
+        "high": {"status": "pass", "model": "gpt-6-astra", "effort": "high", "child_thread_id": "01a0def7-0a03-7fe0-931b-80cb25d65a26", "lineage_note": "Persisted runtime independently inspected."},
+        "xhigh": {"status": "pass", "model": "gpt-6-astra", "effort": "xhigh", "child_thread_id": "01a0def8-832d-7ff3-84d2-2d20029a79f2", "lineage_note": "Installed wrapper returned a verified runtime receipt."}
+      },
+      "result": "3/4 compatibility canaries passed. The low failure was prelaunch and is not a model incompatibility."
+    }
+  },
+  "B_live_chains": [
+    {
+      "host": "desktop",
+      "parent_thread_id": "01a0de62-021a-7431-8bbc-13d5b6de30a2",
+      "child_thread_id": "01a0df14-fa7e-7813-a8fd-beb81e0bffde",
+      "consultation_id": "596a91af-ebff-45b9-a2d5-44c506637c06",
+      "case_kind": "real-technical-issue",
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "transport": "codex-exec via installed-wsl-bridge",
+      "runtime_inspector": {"exit_code": 0, "sandbox": "read-only", "permission_profile": "managed", "model": "gpt-6-astra", "effort": "low"},
+      "wrapper_exit_code": 0,
+      "envelope": {"status": "completed", "outcome": "accepted", "next_level": null, "result_digest": "sha256:3bd030e1dbc9518dfbc667e53938e08369d61f6557cf7a3765d82a62d3c98e29"},
+      "ledger": {"chain_id": "ca334da9-e26b-4b61-afc8-8a2c1d3910cf", "attempt_id": "a58aefd3-944e-4e95-8eaa-cf4a5f3252fd", "status": "complete", "low_status": "completed", "next_action": "stop", "policy_digest": "sha256:4c39799c6d4eb37af753c29d8168fa65452bde14a0ce7bfb8cca4cb81ca5f7a6", "inspect_exit_code": 0},
+      "higher_edges": "NOT_EXERCISED"
+    },
+    {
+      "host": "cli",
+      "parent_thread_id": "01a0df18-28a8-7a72-8d1e-269fbae29f96",
+      "child_thread_id": "01a0df20-3ad4-7902-a8b3-0c8e2e5507a0",
+      "consultation_id": "58a323c3-732c-45d9-befa-85e72c61c8f7",
+      "case_kind": "real-technical-issue",
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "transport": "codex-exec via installed-wsl-bridge",
+      "runtime_inspector": {"exit_code": 0, "sandbox": "read-only", "permission_profile": "managed", "model": "gpt-6-astra", "effort": "low"},
+      "wrapper_exit_code": 0,
+      "envelope": {"status": "completed", "outcome": "accepted", "next_level": null, "result_digest": "sha256:dfe59853909230bb65ce59969c8afedef38298b7d6f56b48ee663aa8995633e9"},
+      "ledger": {"chain_id": "47b112b4-b0ff-4ea6-b8b7-e22bd2f6ad0d", "attempt_id": "c6bfbe1e-b05b-431e-8472-9ed177bfe962", "status": "complete", "low_status": "completed", "next_action": "stop", "policy_digest": "sha256:4c39799c6d4eb37af753c29d8168fa65452bde14a0ce7bfb8cca4cb81ca5f7a6", "inspect_exit_code": 0},
+      "higher_edges": "NOT_EXERCISED"
+    }
+  ],
+  "C_synthetic_qualification": {
+    "status": "PASS_BOTH_HOSTS",
+    "scenario": "full-adjacent-escalation-v1",
+    "default_off": true,
+    "explicit_opt_in": "ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION=1",
+    "child_count": 8,
+    "evidence_boundary": "All three adjacent transitions were exercised through real Advisor child runtimes and the active validator/ledger in a controlled synthetic scenario. This is protocol-routing evidence, not evidence that a real engineering issue warrants escalation.",
+    "gate": "After each child, the primary validated the completed/accepted envelope, scenario/run labels, adjacent next_level, persisted ledger reserve action, and runtime inspector identity before starting the next level.",
+    "hosts": [
+      {
+        "host": "desktop",
+        "parent_thread_id": "01a0de62-021a-7431-8bbc-13d5b6de30a2",
+        "parent_inspector": {"status": "available", "sandbox": "workspace-write", "permission_profile": "managed"},
+        "run_id": "b8a388bc-a9f5-43a6-8bb8-24a4a446e14a",
+        "checkpoint_key": "cp4c-desktop-ba6451da-2c9c-4dbc-9077-02e9eb2dae09",
+        "chain_id": "f2bc578f-7309-4323-a17c-b15ad798919f",
+        "checkpoint_key_digest": "sha256:b3975ef99704584999f118a508497e0bae99aff18cc50864f9d90593f8241c96",
+        "transport": "codex-exec via installed-wsl-bridge",
+        "wrapper_exit_codes": [0, 0, 0, 0],
+        "runtime_inspector_exit_codes": [0, 0, 0, 0],
+        "ledger_final": {"status": "complete", "next_action": "stop"},
+        "stages": [
+          {"level": "low", "model": "gpt-6-astra", "effort": "low", "child_thread_id": "01a0df5a-9732-7951-a8aa-edbf2fddaa04", "consultation_id": "3b12bd6f-b172-4496-badf-d70d0e443a09", "attempt_id": "c3af95ac-217c-448d-9c46-fd17d3ea25a4", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": "medium"}, "packet_digest": "sha256:767dd0d76e4f95f472e0ad878e3835deb1bb773f66beacfdd0bbb0e2485eb67f", "result_digest": "sha256:e27aecd1521f290416bb2ab5ef256704557585348d249d966cb3399d23fe5e40", "total_duration_ms": 17645, "usage_availability": "all_available"},
+          {"level": "medium", "model": "gpt-6-astra", "effort": "medium", "child_thread_id": "01a0df5b-b32d-7422-9ef0-8b42bb6ddfae", "consultation_id": "07c10b2b-2b58-4671-a6e8-34565c1ae52e", "attempt_id": "5306fc1a-b5ad-42f4-b73c-43aa0d349ba7", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": "high"}, "packet_digest": "sha256:6db7cf19f63f6843cecea62365c997146ed72acc9fe76ceec31e10552b7e0624", "result_digest": "sha256:fe8e1000fa45160556fc5fbdfaf5db9500b419c7e40c92162a00810521d0006f", "total_duration_ms": 16683, "usage_availability": "all_available"},
+          {"level": "high", "model": "gpt-6-astra", "effort": "high", "child_thread_id": "01a0df5c-7eaf-75b2-baef-9c4636dfda65", "consultation_id": "7e80c48e-8dbd-4ea7-9a4e-cfc3228a1828", "attempt_id": "db631f67-9fba-492c-a214-1a498ad6d513", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": "extra_high"}, "packet_digest": "sha256:82cc4cdb9943bb7b8d5b26acd2b174a010e74a1d4d22554baafdca19a1dc8e6e", "result_digest": "sha256:f80b916f6eb24f8eead55602afb430ff2e36bc4bfbb1056eb5ad4448c82899d1", "total_duration_ms": 19236, "usage_availability": "all_available"},
+          {"level": "extra_high", "model": "gpt-6-astra", "effort": "xhigh", "child_thread_id": "01a0df5d-8a88-7392-82b9-68ad5256ea2c", "consultation_id": "ccc7322c-0db7-4ec0-a960-7393ebda4d6e", "attempt_id": "4448b0b2-85ab-49ed-ba25-715728bd2036", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": null}, "packet_digest": "sha256:1969560fed28ee3737cf27bc13b8f68d2d7e502490bb7ae4c91bbe022d938eed", "result_digest": "sha256:faf680ff1f654d558bc91f4391c0579d510dc3e675a70602bd0ee693c1340cbf", "total_duration_ms": 21439, "usage_availability": "all_available"}
+        ]
+      },
+      {
+        "host": "cli",
+        "parent_thread_id": "01a0df60-a764-7af1-b7cc-5d0ab15ae7f7",
+        "parent_inspector": {"status": "available", "sandbox": "workspace-write", "permission_profile": "managed"},
+        "run_id": "85e16c95-c967-4fdc-a8c3-4551ea3c6407",
+        "checkpoint_key": "cp4c-cli-dbcb6805-ed15-455d-8831-b5fba7765489",
+        "chain_id": "f6a0694c-72a3-4daa-9fc0-467ded9b1e81",
+        "checkpoint_key_digest": "sha256:ef1b0dc8c5b9c4956d3b29f5d70e82de96204a46a6a6edf4d0fb1bfc96a4a5ac",
+        "transport": "codex-exec via installed-wsl-bridge",
+        "wrapper_exit_codes": [0, 0, 0, 0],
+        "runtime_inspector_exit_codes": [0, 0, 0, 0],
+        "ledger_final": {"status": "complete", "next_action": "stop"},
+        "stages": [
+          {"level": "low", "model": "gpt-6-astra", "effort": "low", "child_thread_id": "01a0df61-c45b-7ba1-ae9b-fd181946255c", "consultation_id": "ef25e861-c10b-4ccb-9278-0a44972d880c", "attempt_id": "31ddf280-c14c-4f15-8be1-5687547ce1e6", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": "medium"}, "packet_digest": "sha256:767dd0d76e4f95f472e0ad878e3835deb1bb773f66beacfdd0bbb0e2485eb67f", "result_digest": "sha256:05e1355ddf49eaa2508d3d33f82bbf1f8a31aa6ed74ff55885ef7729b3c9710c", "total_duration_ms": 17446, "usage_availability": "all_available"},
+          {"level": "medium", "model": "gpt-6-astra", "effort": "medium", "child_thread_id": "01a0df62-7d17-7973-8af9-f695191f9b5d", "consultation_id": "5e55563c-8887-4e51-8397-ededa865c028", "attempt_id": "93445392-ab23-4917-9daf-f6c6d71fe99a", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": "high"}, "packet_digest": "sha256:6db7cf19f63f6843cecea62365c997146ed72acc9fe76ceec31e10552b7e0624", "result_digest": "sha256:6f91dbaa325f9a0632cf4af9c90475c3bf4fbb92be0061e8e38b6456d79ea2e5", "total_duration_ms": 15115, "usage_availability": "all_available"},
+          {"level": "high", "model": "gpt-6-astra", "effort": "high", "child_thread_id": "01a0df63-424d-77e2-95db-a0e5a6f2df83", "consultation_id": "dea886ff-8590-4283-a485-dc02e606f361", "attempt_id": "a8bfdc1e-6284-48e8-b445-54f85e389104", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": "extra_high"}, "packet_digest": "sha256:82cc4cdb9943bb7b8d5b26acd2b174a010e74a1d4d22554baafdca19a1dc8e6e", "result_digest": "sha256:9bb90c19bf93548de37863027429a81d4e81113b2952d5f0acb1e42b1beff6e2", "total_duration_ms": 18372, "usage_availability": "all_available"},
+          {"level": "extra_high", "model": "gpt-6-astra", "effort": "xhigh", "child_thread_id": "01a0df63-ff9d-7a91-b3d3-2b8d70460373", "consultation_id": "42475974-b1ba-46fa-b91a-6e82cfbe6816", "attempt_id": "7d2ddf09-19c2-4271-b1b9-57c7d0cffb53", "envelope": {"status": "completed", "outcome": "accepted", "synthetic_scenario": true, "next_level": null}, "packet_digest": "sha256:1969560fed28ee3737cf27bc13b8f68d2d7e502490bb7ae4c91bbe022d938eed", "result_digest": "sha256:7b7a928b7e990615d52aeef723de7d8291c1d838f5ac7d518b33ba825495800a", "total_duration_ms": 26268, "usage_availability": "all_available"}
+        ]
+      }
+    ]
+  },
+  "CP5": {
+    "status": "PASS_COLD_START_BOTH_HOSTS",
+    "scope": "Fresh CLI startup and post-restart Desktop startup, each followed by one ordinary low smoke child. This record does not claim separate installer upgrade/rollback checks.",
+    "children_used": 2,
+    "cli": {
+      "cold_start_preflight": {"cli_version": "codex-cli 0.155.0", "advisor_plugin_version": "1.4.5", "installed": true, "enabled": true, "command_exit_code": 0, "local_plugin_listing_returned": true, "non_blocking_warnings": "Unable to clean stale arg0 temp dirs and query remote marketplace in the restricted preflight; local plugin list still returned the installed enabled plugin."},
+      "parent_thread_id": "01a0df66-50f9-71b3-8a51-c071a56d678e",
+      "parent_inspector": {"status": "available", "sandbox": "workspace-write", "permission_profile": "managed"},
+      "smoke": {"child_thread_id": "01a0df67-f108-78b1-b232-32244abbd326", "consultation_id": "35bc59ea-e22c-46da-aac9-424b5dce0858", "chain_id": "11429235-8af8-48a5-9034-a07c95ac34e3", "checkpoint_key_digest": "sha256:cf8e44ec5346334a08f08dc33a744036bb438e2510f1443b6d6475d9ec8e527f", "attempt_id": "f7b70741-9cb8-4b9f-94ae-665a0faa9319", "packet_digest": "sha256:b63afadcf4c2d6816aad2a4811b4c1def8ff4a5003e038db40a3e4acfbaf8ce8", "result_digest": "sha256:d9fcf32059aab96807a5cf22a4458cdd2a1894f50179660d7123b598820d73ba", "model": "gpt-6-astra", "effort": "low", "transport": "codex-exec via installed-wsl-bridge", "synthetic_scenario": false, "envelope": {"status": "completed", "outcome": "accepted", "next_level": null}, "ledger": {"status": "complete", "next_action": "stop", "inspect_exit_code": 0}, "runtime_inspector_exit_code": 0, "wrapper_exit_code": 0, "total_duration_ms": 16934, "usage_availability": "all_available"}
+    },
+    "desktop": {
+      "process_restart": {"old_pid": 16936, "new_pid": 27448, "same_executable": true, "verified": true},
+      "parent_thread_id": "01a0de62-021a-7431-8bbc-13d5b6de30a2",
+      "parent_inspector_after_restart": {"status": "available", "sandbox": "workspace-write", "permission_profile": "managed"},
+      "smoke": {"child_thread_id": "01a0df6e-59e5-7473-9a86-9b3ee8606fc8", "consultation_id": "0a7aaaba-f4c7-4a78-b034-590aff70ee8c", "chain_id": "f77b1135-3f4d-4175-9375-402dd1d903ea", "checkpoint_key_digest": "sha256:f62b941fa409ac6013b72da7328f9d74c6a3fdc2f65769936e4203956ec0f38f", "attempt_id": "a0a5662b-0292-400f-9e21-dde6d630ed91", "packet_digest": "sha256:495f80c532d5229eb0050b0058f5b8a057c6f85c1d6a6f8a32c626b4aeee0304", "result_digest": "sha256:a710c309aa6d7998fc8f7a0f89ec0fbb2f4565add7d5eec0058725f8baab872f", "model": "gpt-6-astra", "effort": "low", "transport": "codex-exec via installed-wsl-bridge", "synthetic_scenario": false, "envelope": {"status": "completed", "outcome": "accepted", "next_level": null}, "ledger": {"status": "complete", "next_action": "stop", "inspect_exit_code": 0}, "runtime_inspector_exit_code": 0, "wrapper_exit_code": 0, "total_duration_ms": 15604, "usage_availability": "all_available"}
+    }
+  },
+  "overall": "PASS for the plan's runtime-escalation qualification and CP5 cold-start criteria: all four efforts ran on both hosts, C exercised all three adjacent edges in real child runtimes through the active synthetic qualification mode, and one non-synthetic low smoke passed after CLI startup and Desktop restart. B's real-issue chains correctly stopped at low; no claim is made that a real issue warrants higher effort."
+}

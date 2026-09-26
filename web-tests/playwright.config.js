@@ -1,5 +1,5 @@
 // Playwright config for the static Codex Advisor site.
-// The site under test is ../site, served by python3's stdlib HTTP server so
+// The site under test is ../site, served by the platform's Python 3 standard library so
 // the suite adds no runtime dependency beyond @playwright/test itself.
 const { defineConfig, devices } = require('@playwright/test');
 
@@ -20,7 +20,7 @@ module.exports = defineConfig({
     { name: 'mobile', use: { ...devices['iPhone 13'] } },
   ],
   webServer: {
-    command: `python3 -m http.server ${PORT} --bind 127.0.0.1 --directory ../site`,
+    command: `${process.platform === 'win32' ? 'python' : 'python3'} -m http.server ${PORT} --bind 127.0.0.1 --directory ../site`,
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',

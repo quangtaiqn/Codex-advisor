@@ -12,6 +12,7 @@ fail() {
 progress() { printf '%s\n' "ADVISOR TRANSPORT: $*" >&2; }
 
 role='' tier='' level='' preset='' checkpoint_key='' canary_token='' parent_thread_id='' sessions_dir='' chain_authorized=false
+qualification_scenario='' qualification_run_id='' qualification_chain_root=''
 selection_source='' selection_revision=null source_revision=null
 source_revision_raw=''
 while [ "$#" -gt 0 ]; do
@@ -20,6 +21,8 @@ while [ "$#" -gt 0 ]; do
     --tier) [ "$#" -ge 2 ] || fail "--tier requires TIER"; tier=$2; shift 2 ;;
     --level) [ "$#" -ge 2 ] || fail "--level requires LEVEL"; level=$2; shift 2 ;;
     --checkpoint-key) [ "$#" -ge 2 ] || fail "--checkpoint-key requires KEY"; checkpoint_key=$2; shift 2 ;;
+    --qualification-scenario) [ "$#" -ge 2 ] || fail "--qualification-scenario requires SCENARIO"; qualification_scenario=$2; shift 2 ;;
+    --qualification-run-id) [ "$#" -ge 2 ] || fail "--qualification-run-id requires UUID"; qualification_run_id=$2; shift 2 ;;
     --chain-authorized) chain_authorized=true; shift ;;
     --preset) [ "$#" -ge 2 ] || fail "--preset requires NAME"; preset=$2; shift 2 ;;
     --compatibility-canary) [ "$#" -ge 2 ] || fail "--compatibility-canary requires TOKEN"; canary_token=$2; shift 2 ;;
@@ -33,15 +36,88 @@ done
 [ -z "$tier" ] || [ -z "$level" ] || fail "--tier and --level are mutually exclusive"
 [ -z "$canary_token" ] || { [ -z "$role" ] && [ -z "$tier" ] && [ -z "$level" ] && [ -z "$preset" ] && [ -z "$checkpoint_key" ]; } || fail "compatibility canary cannot be mixed with active routing"
 [ -z "$preset" ] || [ -n "$tier" ] || fail "--preset requires --tier"
+[ -z "${ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION-}" ] || [ -n "$qualification_scenario" ] || fail "qualification opt-in requires an explicit scenario"
+if [ -n "$qualification_scenario" ] || [ -n "$qualification_run_id" ]; then
+  [ "$qualification_scenario" = full-adjacent-escalation-v1 ] || fail "unsupported qualification scenario"
+  [ "${ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION-}" = 1 ] || fail "qualification requires explicit opt-in"
+  printf '%s\n' "$qualification_run_id" | LC_ALL=C grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' || fail "qualification run id must be a UUIDv4"
+  [ -n "$level" ] && [ -n "$checkpoint_key" ] || fail "qualification requires --level and --checkpoint-key"
+  [ -z "$role" ] && [ -z "$tier" ] && [ -z "$preset" ] && [ -z "$canary_token" ] || fail "qualification only supports active Astra routing"
+  case "$level:$chain_authorized" in
+    low:false|medium:true|high:true|extra_high:true) ;;
+    *) fail "qualification level authorization is invalid" ;;
+  esac
+  case "${HOME-}" in /*) ;; *) fail "qualification home is unavailable" ;; esac
+  qualification_chain_root=$HOME/.codex-advisor/qualification-$qualification_run_id
+  checkpoint_key="qualification:$qualification_run_id:$checkpoint_key"
+fi
 [ -n "$role" ] || [ -n "$tier" ] || [ -n "$level" ] || [ -n "$canary_token" ] || fail "--role, --tier, --level, or canary is required"
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd) || fail "script directory unavailable"
 command -v python3 >/dev/null 2>&1 || fail "python3 is unavailable"
-command -v codex >/dev/null 2>&1 || fail "codex CLI is unavailable"
 command -v jq >/dev/null 2>&1 || fail "jq is unavailable"
+for helper in advisor_transport.py; do
+  [ -f "$script_dir/$helper" ] && [ ! -L "$script_dir/$helper" ] || fail "installed Advisor helper is unsafe"
+done
+
+codex_bin=${ADVISOR_CODEX_BIN-}
+transport_config=${ADVISOR_TRANSPORT_CONFIG:-${HOME-}/.codex-advisor/transport/transport.json}
+if [ -z "$codex_bin" ] && [ -n "${WSL_DISTRO_NAME-}" ] && { [ -n "${ADVISOR_TRANSPORT_CONFIG-}" ] || [ -e "$transport_config" ] || [ -L "$transport_config" ]; }; then
+  codex_bin=$(python3 "$script_dir/advisor_transport.py" --resolve codex_executable) || fail "configured WSL Codex transport is unavailable"
+fi
+if [ -z "$codex_bin" ]; then
+  codex_bin=$(command -v codex 2>/dev/null || :)
+fi
+[ -n "$codex_bin" ] || fail "codex CLI is unavailable"
+[ -f "$codex_bin" ] && [ -x "$codex_bin" ] || fail "codex CLI executable is unavailable"
+if ! codex_version=$(python3 - "$codex_bin" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+
+path = sys.argv[1]
+try:
+    process = subprocess.Popen(
+        [path, "--version"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    output, _ = process.communicate(timeout=5)
+except (OSError, subprocess.TimeoutExpired):
+    if "process" in locals() and process.poll() is None:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            process.kill()
+        process.wait()
+    raise SystemExit(1)
+if process.returncode != 0 or len(output) > 4096:
+    raise SystemExit(1)
+try:
+    version = output.decode("utf-8").strip()
+except UnicodeDecodeError:
+    raise SystemExit(1)
+if not version or "\n" in version or "\r" in version:
+    raise SystemExit(1)
+print(version)
+PY
+); then
+  fail "Codex CLI preflight failed"
+fi
+progress "Codex CLI preflight passed ($codex_version)"
 for helper in advisor_config.py advisor_process.py advisor_chain.py inspect-agent-runtime.sh; do
   [ -f "$script_dir/$helper" ] && [ ! -L "$script_dir/$helper" ] || fail "installed Advisor helper is unsafe"
 done
 chain_script=$script_dir/advisor_chain.py
+chain_store() {
+  if [ -n "$qualification_scenario" ]; then
+    python3 "$chain_script" --root "$qualification_chain_root" "$@"
+  else
+    python3 "$chain_script" "$@"
+  fi
+}
 if [ -n "$canary_token" ]; then
   resolution=$(python3 "$script_dir/advisor_config.py" --json _consume-canary "$canary_token") || fail "compatibility canary authorization is unavailable"
   model=$(printf '%s' "$resolution" | jq -r '.launch.model') || fail "invalid compatibility canary authorization"
@@ -145,7 +221,7 @@ chain_mark_terminal() {
   case "$1" in
     timed_out|cancelled|unknown) chain_status=uncertain ;;
   esac
-  if ! python3 "$chain_script" "$chain_status" \
+  if ! chain_store "$chain_status" \
     --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
     --level "$level" --failure-code "$1" >/dev/null 2>&1; then
     progress "warning (checkpoint safety state could not be finalized)"
@@ -202,22 +278,20 @@ PY
     journal_record=$(jq -cn --arg id "$consultation_id" --arg started "$consultation_started" --arg finished "$consultation_finished" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg outcome "$consultation_outcome" --argjson duration "$total_duration_ms" --argjson attempts "$attempt_records" --argjson totals "$totals" '{schema_version:1,consultation_id:$id,started_at:$started,finished_at:$finished,tier:$tier,model:$model,effort:$effort,outcome:$outcome,transport_contract_version:"1.4",total_duration_ms:$duration,attempts:[$attempts[]|{number,duration_ms,outcome,usage}],totals:$totals}') || journal_record=''
     if [ -z "$journal_record" ] || ! python3 "$script_dir/advisor_config.py" --json _journal-record "$journal_record" >/dev/null 2>&1; then printf '%s\n' 'ADVISOR TRANSPORT: warning (usage journal write unavailable)' >&2; fi
   fi
-  jq -cn --arg id "$consultation_id" --arg tier "$tier" --arg level "$level" --arg model "$model" --arg effort "$effort" --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --arg outcome "$consultation_outcome" --argjson attempts "$attempt_records" --argjson totals "$totals" --argjson availability "$availability" --argjson duration "$total_duration_ms" '{schema_version:3,status:"unavailable",outcome:$outcome,consultation_id:$id,selection:{tier:$tier,level:$level,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},escalation:null,attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:null,response:null}' || :
+  jq -cn --arg id "$consultation_id" --arg tier "$tier" --arg level "$level" --arg model "$model" --arg effort "$effort" --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --arg outcome "$consultation_outcome" --argjson attempts "$attempt_records" --argjson totals "$totals" --argjson availability "$availability" --argjson duration "$total_duration_ms" --arg qscenario "$qualification_scenario" --arg qrunid "$qualification_run_id" '{schema_version:3,status:"unavailable",outcome:$outcome,consultation_id:$id,selection:{tier:$tier,level:$level,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},escalation:null,attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:null,response:null} | if $qscenario == "" then . else . + {synthetic_scenario:true,qualification_scenario:$qscenario,qualification_run_id:$qrunid} end' || :
 }
 
 [ -n "$parent_thread_id" ] || parent_thread_id=${CODEX_THREAD_ID-}
 printf '%s\n' "$parent_thread_id" | LC_ALL=C grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || fail "parent thread is unavailable"
+if [ -z "$sessions_dir" ] && [ -n "${WSL_DISTRO_NAME-}" ] && { [ -e "$transport_config" ] || [ -L "$transport_config" ]; }; then
+  sessions_dir=$(python3 "$script_dir/advisor_transport.py" --resolve sessions_directory) || fail "configured Codex sessions directory is unavailable"
+fi
 codex_home=${CODEX_HOME:-${HOME-}/.codex}
 case "$codex_home" in /*) ;; *) fail "Codex home is unavailable" ;; esac
 [ -d "$codex_home" ] && [ ! -L "$codex_home" ] || fail "Codex home is unavailable"
 transport_root=$codex_home/.tmp/advisor-transport
 umask 077
-if [ ! -e "$transport_root" ]; then
-  mkdir -p "$transport_root" || fail "private transport root creation failed"
-fi
-[ -d "$transport_root" ] && [ ! -L "$transport_root" ] || fail "private transport root is unsafe"
-transport_dir=$(mktemp -d "$transport_root/run.XXXXXX") || fail "temporary directory creation failed"
-chmod 700 "$transport_dir" || fail "temporary directory protection failed"
+transport_dir=''
 supervisor_pid=''
 cleanup() {
   if [ -n "$supervisor_pid" ]; then
@@ -225,7 +299,9 @@ cleanup() {
     wait "$supervisor_pid" 2>/dev/null || :
     supervisor_pid=''
   fi
-  case "$transport_dir" in "$transport_root"/run.*) rm -rf -- "$transport_dir" ;; esac
+  if [ -n "$transport_dir" ]; then
+    case "$transport_dir" in "$transport_root"/run.*) rm -rf -- "$transport_dir" ;; esac
+  fi
 }
 cancelled() {
   if [ -n "$supervisor_pid" ]; then
@@ -238,6 +314,12 @@ cancelled() {
 }
 trap cleanup 0
 trap cancelled HUP INT TERM
+if [ ! -e "$transport_root" ]; then
+  mkdir -p "$transport_root" || fail "private transport root creation failed"
+fi
+[ -d "$transport_root" ] && [ ! -L "$transport_root" ] || fail "private transport root is unsafe"
+transport_dir=$(mktemp -d "$transport_root/run.XXXXXX") || fail "temporary directory creation failed"
+chmod 700 "$transport_dir" || fail "temporary directory protection failed"
 
 packet=$transport_dir/packet.txt
 base_prompt=$transport_dir/prompt.1.txt
@@ -259,12 +341,12 @@ chain_reserve() {
   deadline_ok || fail "consultation deadline exceeded"
   chain_status=0
   if [ "$chain_authorized" = true ]; then
-    chain_result=$(python3 "$chain_script" reserve \
+    chain_result=$(chain_store reserve \
       --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
       --packet-digest "$chain_packet_digest" --level "$level" \
       --authorize-escalation 2>/dev/null) || chain_status=$?
   else
-    chain_result=$(python3 "$chain_script" reserve \
+    chain_result=$(chain_store reserve \
       --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
       --packet-digest "$chain_packet_digest" --level "$level" 2>/dev/null) || chain_status=$?
   fi
@@ -278,7 +360,7 @@ chain_reserve() {
     launch) chain_reserved=true ;;
     resume_required)
       reconcile_status=0
-      reconcile_result=$(python3 "$chain_script" reconcile \
+      reconcile_result=$(chain_store reconcile \
         --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
         --level "$level" --failure-code unknown 2>/dev/null) || reconcile_status=$?
       [ "$reconcile_status" -eq 0 ] || fail 'checkpoint reservation reconciliation is unavailable'
@@ -294,12 +376,12 @@ chain_complete() {
   result_digest=$1
   next_level=$2
   if [ -n "$next_level" ]; then
-    python3 "$chain_script" complete \
+    chain_store complete \
       --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
       --level "$level" --next-level "$next_level" --result-digest "$result_digest" \
       >/dev/null 2>&1 || fail 'checkpoint completion state is unavailable'
   else
-    python3 "$chain_script" complete \
+    chain_store complete \
       --checkpoint-key "$checkpoint_key" --policy-digest "$source_revision_raw" \
       --level "$level" --result-digest "$result_digest" \
       >/dev/null 2>&1 || fail 'checkpoint completion state is unavailable'
@@ -325,14 +407,40 @@ REQUEST
 Return the required JSON object with a neutral recommendation and concrete transport acceptance checks.
 ADVISOR_CANARY
 else
-  python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" --capture-to "$packet" <&0 &
+  exec 9<&0 || fail "cannot preserve decision packet stdin"
+  python3 "$script_dir/advisor_process.py" \
+    --deadline-at "$deadline_at" \
+    --capture-to "$packet" <&9 9<&- &
   supervisor_pid=$!
+  exec 9<&-
   capture_status=0
   wait "$supervisor_pid" || capture_status=$?
   supervisor_pid=''
+  [ "$capture_status" -ne 124 ] || fail "consultation deadline exceeded"
   [ "$capture_status" -eq 0 ] || fail "decision packet capture failed"
 fi
 [ -s "$packet" ] || fail "decision packet is empty"
+
+if [ -n "$qualification_scenario" ]; then
+  case "$level" in
+    low) qualification_next=medium ;;
+    medium) qualification_next=high ;;
+    high) qualification_next=extra_high ;;
+    extra_high) qualification_next=null ;;
+    *) fail "unsupported qualification level" ;;
+  esac
+  {
+    printf '\n%s\n' 'SYNTHETIC QUALIFICATION CONTROL — NOT A REAL TECHNICAL ISSUE'
+    printf '%s\n' 'This explicitly opted-in scenario tests runtime orchestration only. Do not imply the staged uncertainty is real, and do not use tools.'
+    printf '%s\n' 'The parent has authorized only the adjacent effort stated below after validating each prior envelope and ledger transition.'
+    printf 'At current level %s, follow the controlled scenario and set escalation.next_level to %s.\n' "$level" "$qualification_next"
+    if [ "$level" = extra_high ]; then
+      printf '%s\n' 'At the terminal effort, conclude the staged review and set escalation.next_level to null.'
+    else
+      printf '%s\n' 'Give a concrete synthetic reason, unresolved difficulty, and what the next adjacent effort should resolve.'
+    fi
+  } >>"$packet"
+fi
 
 previous=0
 for heading in DECISION CONTEXT OPTIONS BOUNDARIES REQUEST; do
@@ -401,10 +509,11 @@ validate_response() {
           or
           ((.[0] | length) == 2 and .[0][0] == "acceptance_checks" and (.[0][1] | type) == "number" and .[0][1] >= 0 and (.[0][1] | floor) == .[0][1] and (.[1] | type) == "string")
           or
-          ((.[0] | length) == 1 and .[0][0] == "escalation" and (.[1] | type) == "object")
+          ((.[0] | length) == 2 and .[0][0] == "escalation")
         )
       and ([scalar_keys[] as $key | ([$events[] | select(.[0] == [$key])] | length) == 1] | all)
-      and ([$events[] | select(.[0] == ["escalation"])] | length) == 1
+      and ([["next_level","reason","unresolved_difficulty","required_resolution"][] as $key |
+          ([$events[] | select(.[0] == ["escalation", $key])] | length) == 1] | all)
       and ($indices | length) > 0
       and $indices == [range(0; $indices | length)])
   ' "$stream" >/dev/null 2>&1; then
@@ -430,8 +539,8 @@ validate_response() {
           | ([$events[] | select(.[0][0] == $key)]) as $matches
           | select(($matches | length) != 1 or $matches[0][0] != [$key] or ($matches[0][1] | type) != "string")
           | "wrong-type/" + $key][0]) //
-        (if ([$events[] | select(.[0] == ["escalation"])] | length) != 1 or
-            ([$events[] | select(.[0] == ["escalation"])][0][1] | type) != "object"
+        (if ([["next_level","reason","unresolved_difficulty","required_resolution"][] as $key |
+          ([$events[] | select(.[0] == ["escalation", $key])] | length) == 1] | all) | not
          then "wrong-type/escalation" else empty end) //
         (([$events[] | select(.[0][0] == "acceptance_checks")]) as $checks
          | ([$checks[] | select((.[0] | length) == 2 and (.[0][1] | type) == "number" and .[0][1] >= 0 and (.[0][1] | floor) == .[0][1] and (.[1] | type) == "string") | .[0][1]]) as $indices
@@ -443,6 +552,21 @@ validate_response() {
     case "$validation_class" in duplicate-or-overwritten-field|missing-field|extra-field|wrong-type|invalid-acceptance-checks) ;; *) validation_class=wrong-type; validation_field=response ;; esac
     case "$validation_field" in recommendation|why|strongest_objection|change_my_mind|acceptance_checks|risks|follow_up_areas|escalation|response) ;; *) validation_field=response ;; esac
     return 1
+  fi
+
+  if ! jq -e '
+    (.escalation | type) == "object" and
+    (.escalation | keys | sort) ==
+      (["next_level","reason","unresolved_difficulty","required_resolution"] | sort) and
+    (.escalation.next_level == null or
+      (.escalation.next_level == "medium" or
+       .escalation.next_level == "high" or
+       .escalation.next_level == "extra_high")) and
+    (.escalation.reason | type) == "string" and
+    (.escalation.unresolved_difficulty | type) == "string" and
+    (.escalation.required_resolution | type) == "string"
+  ' "$candidate" >/dev/null 2>&1; then
+    validation_failure wrong-type escalation || return 1
   fi
 
   for field in recommendation why strongest_objection change_my_mind risks follow_up_areas; do
@@ -518,7 +642,7 @@ PY
 ) || fail "attempt timing initialization failed"
 attempt_open=true
 progress "launching $role ($model, $effort, read-only) deadline ${deadline_seconds}s, attempt 1 of 1"
-python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" -- codex exec --json --ignore-user-config --ignore-rules \
+python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" -- "$codex_bin" exec --json --ignore-user-config --ignore-rules \
   --sandbox read-only --model "$model" -c "model_reasoning_effort=\"$effort\"" \
   -C "$workdir" --skip-git-repo-check --output-schema "$response_schema" \
   --output-last-message "$response" - <"$prompt" >"$events" &
@@ -526,6 +650,9 @@ supervisor_pid=$!
 transport_status=0
 wait "$supervisor_pid" || transport_status=$?
 supervisor_pid=''
+if [ "$transport_status" -eq 124 ]; then
+  fail "consultation deadline exceeded"
+fi
 if [ "$transport_status" -ne 0 ]; then
   fail "codex exec failed"
 fi
@@ -553,6 +680,9 @@ inspection_status=0
 wait "$supervisor_pid" || inspection_status=$?
 supervisor_pid=''
 if [ "$inspection_status" -ne 0 ]; then
+  if [ "$inspection_status" -eq 124 ]; then
+    fail "consultation deadline exceeded"
+  fi
   if grep -Fqx 'ERROR: runtime_provenance_mismatch' "$inspection_error"; then
     fail "runtime_provenance_mismatch"
   fi
@@ -609,4 +739,5 @@ jq -cn --argjson evidence "$(cat "$evidence")" --argjson escalation "$(jq -c '.e
   --arg tier "$tier" --arg level "$level" --arg model "$model" --arg effort "$effort" \
   --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --argjson attempts "$attempt_records" --argjson totals "$totals" --arg id "$consultation_id" \
   --argjson availability "$availability" --argjson duration "$total_duration_ms" \
-  '{schema_version:3,status:"completed",outcome:"accepted",consultation_id:$id,selection:{tier:$tier,level:$level,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},escalation:$escalation,attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:$evidence,response:$response}'
+  --arg qscenario "$qualification_scenario" --arg qrunid "$qualification_run_id" \
+  '{schema_version:3,status:"completed",outcome:"accepted",consultation_id:$id,selection:{tier:$tier,level:$level,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.4"},escalation:$escalation,attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:$evidence,response:$response} | if $qscenario == "" then . else . + {synthetic_scenario:true,qualification_scenario:$qscenario,qualification_run_id:$qrunid} end'

@@ -22,6 +22,8 @@ installer=$script_dir/install-agents.sh
 inspector=$script_dir/inspect-agent-runtime.sh
 parent_inspector=$script_dir/inspect-parent-runtime.sh
 transport=$script_dir/run-advisor.sh
+transport_adapter=$script_dir/advisor_transport.py
+wsl_transport_installer=$script_dir/install-wsl-transport.sh
 response_schema=$plugin_dir/advisor-response.schema.json
 audit=$script_dir/advisor-audit.sh
 evaluator=$script_dir/evaluate-triggers.sh
@@ -44,7 +46,7 @@ walkthrough=$repo_dir/docs/advisor-1.4-walkthrough.md
 release_notes=$repo_dir/docs/release-notes-draft.md
 package_test=$repo_dir/public-release/test_candidate_package.py
 
-for file in "$manifest" "$marketplace" "$terra_role" "$sol_role" "$astra_role" "$skill" "$ui" "$operations" "$fixtures" "$installer" "$inspector" "$parent_inspector" "$transport" "$response_schema" "$audit" "$evaluator" "$config_test" "$transport_test" "$usage_test" "$cli_test" "$process_helper" "$config_helper" "$config_wrapper" "$live_config" "$models" "$settings_schema" "$model_doc" "$walkthrough" "$release_notes" "$package_test" "$readme" "$notice" "$license"; do
+for file in "$manifest" "$marketplace" "$terra_role" "$sol_role" "$astra_role" "$skill" "$ui" "$operations" "$fixtures" "$installer" "$inspector" "$parent_inspector" "$transport" "$transport_adapter" "$wsl_transport_installer" "$response_schema" "$audit" "$evaluator" "$config_test" "$transport_test" "$usage_test" "$cli_test" "$process_helper" "$config_helper" "$config_wrapper" "$live_config" "$models" "$settings_schema" "$model_doc" "$walkthrough" "$release_notes" "$package_test" "$readme" "$notice" "$license"; do
   [ -f "$file" ] || fail "missing required file: $file"
 done
 [ "$(find "$plugin_dir/agents" -maxdepth 1 -type f -name '*.toml' | wc -l | tr -d ' ')" -eq 3 ] || fail "expected exactly three active roles"
@@ -109,15 +111,17 @@ for role,pins in pairs:
 items=cases.get("cases",[])
 if len(items)!=14 or len({c.get("id") for c in items})!=14: raise SystemExit("fixture inventory")
 counts={k:sum(c.get("class")==k for c in items) for k in ("consult","skip","boundary")}
-if counts!={"consult":6,"skip":4,"boundary":4}: raise SystemExit(f"fixture classes {counts}")
+if counts!={"consult":5,"skip":5,"boundary":4}: raise SystemExit(f"fixture classes {counts}")
 if any(c.get("expected") not in ("consult","skip") or not c.get("prompt") for c in items): raise SystemExit("fixture fields")
+resolved = next((c for c in items if c.get("id") == "skip-resolved-interface"), None)
+if resolved is None or resolved.get("class") != "skip" or resolved.get("expected") != "skip" or "settled" not in resolved.get("prompt", "").lower(): raise SystemExit("resolved-interface fixture must skip after uncertainty is settled")
 risks={k:sum(c.get("risk")==k for c in items) for k in ("standard","specialist")}
 if risks!={"standard":10,"specialist":4}: raise SystemExit(f"fixture risk tiers {risks}")
 if {c["id"] for c in items if c.get("risk")=="specialist"}!={"consult-security","boundary-high-risk","consult-unresolved-compatibility","consult-competing-diagnoses"}: raise SystemExit("specialist fixture scope")
 if "allow_implicit_invocation: true" not in ui or "interface:" not in ui or "policy:" not in ui: raise SystemExit("UI YAML contract")
 print("structured files valid")
 PY
-pass "manifest, marketplace, live TOML, YAML, and 6/4/4 evaluator fixtures"
+pass "manifest, marketplace, live TOML, YAML, and 5/5/4 evaluator fixtures"
 
 for phrase in \
   'ordinary bounded material architecture' 'interface' 'data-model' 'compatibility' \
@@ -167,6 +171,30 @@ for phrase in 'ADVISOR DECISION' 'route: consult | skip | unavailable' 'inspect-
   'non-read-only' 'tool-use evidence'; do
   grep -Fq -- "$phrase" "$skill" || fail "consultation contract omits: $phrase"
 done
+for phrase in 'install-wsl-transport.sh' 'hash-checked configuration' \
+  'CODEX_THREAD_ID' 'UTF-8' 'stdin' 'installed private bridge' \
+  'next_action' '--chain-authorized' 'not a shell loop' \
+  'do not wait for Quang' 'extra_high'; do
+  grep -Fqi -- "$phrase" "$skill" || fail "runtime escalation contract omits: $phrase"
+done
+for phrase in 'codex-wsl-bridge.py' 'windows_node_executable' \
+  'windows_codex_entrypoint' 'sessions_directory' 'os.execv' '--install'; do
+  grep -Fq -- "$phrase" "$transport_adapter" || fail "persistent WSL adapter contract omits: $phrase"
+done
+grep -Fq 'advisor_transport.py' "$wsl_transport_installer" || fail "WSL installer omits the transport adapter"
+grep -Fq 'installed-wsl-bridge' "$operations" || fail "operations omits the installed WSL transport"
+for phrase in 'ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION' 'full-adjacent-escalation-v1' \
+  'qualification requires explicit opt-in' 'qualification_chain_root' \
+  'SYNTHETIC QUALIFICATION CONTROL' 'synthetic_scenario:true'; do
+  grep -Fq -- "$phrase" "$transport" || fail "qualification transport contract omits: $phrase"
+done
+for document in "$skill" "$operations"; do
+  for phrase in 'user-approved' 'qualification campaign' 'synthetic_scenario: true' \
+    'same checkpoint key' 'does not prove' 'real technical issue'; do
+    grep -Fqi -- "$phrase" "$document" || fail "qualification policy omits: $phrase: $document"
+  done
+done
+pass "persistent WSL bridge, parent identity, configured sessions, and automatic adjacent escalation"
 for document in "$operations" "$repo_dir/SPEC.md"; do
   grep -Fqi 'repository or web research' "$document" || fail "root-research contract missing: $document"
   grep -Fqi 'source references' "$document" || fail "source-reference contract missing: $document"
@@ -338,7 +366,7 @@ for filename in sys.argv[1:]:
 print("deferred handoff contract ordering valid")
 PY
 pass "deferred exec results are drained with write_stdin and one final envelope is parsed after terminal exit"
-for phrase in 'codex exec --json --ignore-user-config --ignore-rules' '--sandbox read-only --model "$model"' 'model_reasoning_effort="$effort"' '--skip-git-repo-check' '--output-schema "$response_schema"' '--output-last-message' 'ADVISOR TRANSPORT:' '--expected-parent "$parent_thread_id"' 'jq --stream' 'consultation reused the parent thread' 'response validation failed' 'advisor response was not verified'; do
+for phrase in 'exec --json --ignore-user-config --ignore-rules' 'ADVISOR_CODEX_BIN' 'Codex CLI preflight failed' 'codex_version=$(python3' '--sandbox read-only --model "$model"' 'model_reasoning_effort=\"$effort\"' '--skip-git-repo-check' '--output-schema "$response_schema"' '--output-last-message' 'ADVISOR TRANSPORT:' '--expected-parent "$parent_thread_id"' 'jq --stream' 'consultation reused the parent thread' 'response validation failed' 'advisor response was not verified'; do
   grep -Fq -- "$phrase" "$transport" || fail "transport contract omits: $phrase"
 done
 if grep -Eq 'response_is_well_formed|Normalize only trailing ASCII|original candidate remains untouched' "$transport"; then fail "retired line response parser remains"; fi
@@ -420,8 +448,7 @@ for source,(new,old) in replacements.items():
     if text.count(new)!=1: raise SystemExit(f"current role description fixture mismatch: {source}")
     if text.count(zero_tool_block)!=1: raise SystemExit(f"current role zero-tool fixture mismatch: {source}")
     if text.count(follow_up_output)!=1: raise SystemExit(f"current role follow-up fixture mismatch: {source}")
-    role_key="terra" if source == terra else "sol"
-    legacy_model,legacy_effort=legacy_model_headers[role_key]
+    legacy_model,legacy_effort=legacy_model_headers[source]
     prior=text.replace(new,old).replace(
         'model = "gpt-6-astra"\nmodel_reasoning_effort = "low"',
         f'model = "{legacy_model}"\nmodel_reasoning_effort = "{legacy_effort}"',
@@ -653,23 +680,23 @@ printf '%s\n' \
  '{"type":"response_item","payload":{"text":"DO_NOT_LEAK"}}' \
  "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$id\",\"source\":\"exec\",\"originator\":\"codex_exec\",\"agent_role\":null,\"parent_thread_id\":null}}" \
  '{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high","sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}' >"$rollout"
-out=$(TMPDIR=/nonexistent-read-only-path sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$id")
+out=$(TMPDIR=/nonexistent-read-only-path sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$id")
 printf '%s\n' "$out" | jq -e '.agent_role=="advisor-sol" and .model=="gpt-5.6-sol" and .effort=="high" and .sandbox_policy_type=="read-only" and .transport=="codex-exec" and (keys|sort)==["agent_role","effort","model","parent_thread_id","permission_profile_type","sandbox_policy_type","thread_id","transport"]' >/dev/null || fail "inspector allowlist/pins"
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-terra --expected-model gpt-5.6-terra --expected-parent "$root_id" "$id" >/dev/null 2>&1; then fail "inspector accepted a role/model pair other than the selected pair"; fi
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$id" "$id" >/dev/null 2>&1; then fail "inspector accepted the parent session as the advisor session"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-terra --expected-model gpt-5.6-terra --expected-effort high --expected-parent "$root_id" "$id" >/dev/null 2>&1; then fail "inspector accepted a role/model pair other than the selected pair"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$id" "$id" >/dev/null 2>&1; then fail "inspector accepted the parent session as the advisor session"; fi
 printf '%s\n' "$out" | grep -Fq DO_NOT_LEAK && fail "inspector leaked payload"
 desktop_id=22222222-2222-7222-8222-222222222222
 printf '%s\n' \
   '{"type":"response_item","payload":{"text":"DO_NOT_LEAK_DESKTOP"}}' \
   "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$desktop_id\",\"source\":\"exec\",\"originator\":\"Codex Desktop\",\"agent_role\":null,\"parent_thread_id\":null}}" \
   '{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high","sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}' >"$sessions/rollout-fixture-$desktop_id.jsonl"
-desktop_out=$(sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$desktop_id")
+desktop_out=$(sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$desktop_id")
 printf '%s\n' "$desktop_out" | jq -e '.agent_role=="advisor-sol" and .model=="gpt-5.6-sol" and .effort=="high" and .sandbox_policy_type=="read-only" and .permission_profile_type=="managed" and .transport=="codex-exec"' >/dev/null || fail "inspector rejected exact Codex Desktop provenance"
 printf '%s\n' "$desktop_out" | grep -Fq DO_NOT_LEAK && fail "desktop inspector leaked payload"
 assert_provenance_mismatch() {
   candidate=$1
   error=$tmp/provenance-error-$candidate.txt
-  if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$candidate" >"$tmp/provenance-out-$candidate.json" 2>"$error"; then
+  if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$candidate" >"$tmp/provenance-out-$candidate.json" 2>"$error"; then
     fail "inspector accepted mismatched provenance"
   fi
   [ "$(cat "$error")" = 'ERROR: runtime_provenance_mismatch' ] || fail "provenance mismatch category was not fixed and stderr-only"
@@ -689,26 +716,26 @@ nonreadonly=$sessions/rollout-fixture-$nonreadonly_id.jsonl
 printf '%s\n' \
   "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$nonreadonly_id\",\"source\":\"exec\",\"originator\":\"codex_exec\"}}" \
   '{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high","sandbox_policy":{"type":"workspace-write"},"permission_profile":{"type":"managed"}}}' >"$nonreadonly"
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$nonreadonly_id" >/dev/null 2>&1; then fail "inspector accepted non-read-only runtime policy"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$nonreadonly_id" >/dev/null 2>&1; then fail "inspector accepted non-read-only runtime policy"; fi
 tool_id=44444444-4444-7444-8444-444444444444
 tool_rollout=$sessions/rollout-fixture-$tool_id.jsonl
 printf '%s\n' \
   "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$tool_id\",\"source\":\"exec\",\"originator\":\"codex_exec\"}}" \
   '{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high","sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}' \
   '{"type":"response_item","payload":{"type":"function_call","name":"repo_inspection"}}' >"$tool_rollout"
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$tool_id" >/dev/null 2>&1; then fail "inspector accepted advisor tool use"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$tool_id" >/dev/null 2>&1; then fail "inspector accepted advisor tool use"; fi
 printf '%s\n' '{"type":"turn_context","payload":{"model":"gpt-5.6-terra","effort":"high","sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}' >>"$rollout"
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$id" >/dev/null 2>&1; then fail "inspector accepted conflicting model"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$id" >/dev/null 2>&1; then fail "inspector accepted conflicting model"; fi
 wrong_effort_id=99999999-9999-7999-8999-999999999999
 printf '%s\n' \
   "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$wrong_effort_id\",\"source\":\"exec\",\"originator\":\"codex_exec\"}}" \
   '{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"medium","sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}' >"$sessions/rollout-fixture-$wrong_effort_id.jsonl"
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$wrong_effort_id" >/dev/null 2>&1; then fail "inspector accepted wrong effort"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$wrong_effort_id" >/dev/null 2>&1; then fail "inspector accepted wrong effort"; fi
 wrong_source_id=aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa
 printf '%s\n' \
   "{\"type\":\"session_meta\",\"payload\":{\"id\":\"$wrong_source_id\",\"source\":\"tui\",\"originator\":\"codex-tui\"}}" \
   '{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high","sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}' >"$sessions/rollout-fixture-$wrong_source_id.jsonl"
-if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-parent "$root_id" "$wrong_source_id" >/dev/null 2>&1; then fail "inspector accepted non-exec provenance"; fi
+if sh "$inspector" --sessions-dir "$tmp/sessions" --expected-role advisor-sol --expected-model gpt-5.6-sol --expected-effort high --expected-parent "$root_id" "$wrong_source_id" >/dev/null 2>&1; then fail "inspector accepted non-exec provenance"; fi
 pass "runtime inspector exact allowlist, pins, redaction, distinct session, exec provenance, wrong effort, non-read-only, tool-use, and conflict refusal"
 
 parent_home=$tmp/parent-home
@@ -775,6 +802,7 @@ from pathlib import Path
 import sys
 Path(sys.argv[1]).write_text(r'''#!/bin/sh
 set -eu
+[ "$#" -eq 1 ] && [ "$1" = "--version" ] && { printf '%s\n' "codex-cli 0.153.2"; exit 0; }
 output='' model='' sandbox='' effort='' workdir='' schema=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -793,7 +821,7 @@ done
 case "$schema" in */plugins/advisor/advisor-response.schema.json) ;; *) exit 93 ;; esac
 case "$output" in "$CODEX_HOME"/.tmp/advisor-transport/run.*/response.*.json) ;; *) exit 94 ;; esac
 case "$workdir" in "$CODEX_HOME"/.tmp/advisor-transport/run.*/workdir.*) ;; *) exit 95 ;; esac
-[ "$(stat -f '%Lp' "$(dirname "$output")" 2>/dev/null || stat -c '%a' "$(dirname "$output")")" = 700 ] || exit 96
+[ "$(stat -c '%a' "$(dirname "$output")" 2>/dev/null || stat -f '%Lp' "$(dirname "$output")")" = 700 ] || exit 96
 
 attempt=1
 if [ -n "${FAKE_CODEX_COUNT_FILE-}" ]; then
@@ -859,16 +887,16 @@ case "${FAKE_CODEX_CASE-valid}:$attempt" in
     ;;
   truncated:*) printf '%s\n' '{"recommendation":"DO_NOT_LEAK_REJECTED"' >"$output" ;;
   non-object:*) printf '%s\n' '["not","an","object"]' >"$output" ;;
-  duplicate-scalar:*) printf '%s\n' '{"recommendation":"path","why":"first","why":"DO_NOT_LEAK_REJECTED","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  duplicate-array:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["first"],"acceptance_checks":["second"],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  container-scalar-overwrite:*) printf '%s\n' '{"recommendation":"path","why":{"nested":"DO_NOT_LEAK_REJECTED"},"why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  missing:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"follow_up_areas":"none"}' >"$output" ;;
-  extra:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","extra":"DO_NOT_LEAK_REJECTED"}' >"$output" ;;
-  wrong-type:*) printf '%s\n' '{"recommendation":7,"why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  noncontiguous-array:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["first",{"nested":"DO_NOT_LEAK_REJECTED"},"third"],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  blank-scalar:*) printf '%s\n' '{"recommendation":"path","why":"  \n ","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  blank-array-item:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"," \t "],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
-  empty-array:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":[],"risks":"none","follow_up_areas":"none"}' >"$output" ;;
+  duplicate-scalar:*) printf '%s\n' '{"recommendation":"path","why":"first","why":"DO_NOT_LEAK_REJECTED","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  duplicate-array:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["first"],"acceptance_checks":["second"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  container-scalar-overwrite:*) printf '%s\n' '{"recommendation":"path","why":{"nested":"DO_NOT_LEAK_REJECTED"},"why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  missing:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  extra:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""},"extra":"DO_NOT_LEAK_REJECTED"}' >"$output" ;;
+  wrong-type:*) printf '%s\n' '{"recommendation":7,"why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  noncontiguous-array:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["first",{"nested":"DO_NOT_LEAK_REJECTED"},"third"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  blank-scalar:*) printf '%s\n' '{"recommendation":"path","why":"  \n ","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  blank-array-item:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":["check"," \t "],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
+  empty-array:*) printf '%s\n' '{"recommendation":"path","why":"reason","strongest_objection":"objection","change_my_mind":"evidence","acceptance_checks":[],"risks":"none","follow_up_areas":"none","escalation":{"next_level":null,"reason":"sufficient","unresolved_difficulty":"","required_resolution":""}}' >"$output" ;;
   *) valid_response ;;
 esac
 
@@ -924,6 +952,8 @@ PY
 chmod 700 "$fake_bin/codex" "$fake_bin/jq"
 
 transport_parent=56565656-5656-7565-8565-565656565656
+export ADVISOR_CODEX_BIN="$fake_bin/codex"
+export ADVISOR_TRANSPORT_CONFIG="$fake_home/no-wsl-transport-config"
 valid_packet=$tmp/valid-packet.txt
 printf '%s\n' DECISION 'question' CONTEXT 'evidence' OPTIONS 'choice' BOUNDARIES 'limits' REQUEST 'challenge' >"$valid_packet"
 transport_out=$tmp/transport-out.json
@@ -1074,6 +1104,7 @@ wait "$concurrent_pid_2" || fail "second concurrent transport lost its private d
 jq -e '.status=="completed"' "$tmp/concurrent-1.json" "$tmp/concurrent-2.json" >/dev/null || fail "concurrent transport result mismatch"
 assert_transport_clean
 pass "run-advisor behavioral transport: strict streamed JSON, typed escalation, duplicate/overwrite defense, nonblank semantics, exact eight-line renderer, one-pass terminal validation, redacted diagnostics, runtime failures, mode-0700 cleanup, concurrency isolation, stderr progress, and single JSON stdout"
+unset ADVISOR_CODEX_BIN ADVISOR_TRANSPORT_CONFIG
 
 audit_sessions=$tmp/audit-sessions; mkdir -p "$audit_sessions/2026/01/01"
 python3 - "$audit_sessions/2026/01/01" <<'PY'
@@ -1500,28 +1531,33 @@ for phrase in \
   '0.153.2' 'safe-unavailable' 'no background deletion service' \
   'prunes records older than 30 days' 'transport contract' 'does not trigger a consultation' \
   'configuration/catalog' \
-  'optional content-free usage journal' 'automatic Terra/Sol defaults' \
-  'separate explicit-only' 'Astra' \
+  'optional content-free usage journal' 'compatibility aliases that all enter Astra/low' \
+  'not separate model routes' 'Astra' \
   '1.4.4 deployment record' 'not yet deployed'; do
   grep -Fqi "$phrase" "$model_doc" || fail "model configuration documentation omits: $phrase"
 done
-grep -Eq '^Candidate content digest: `[0-9a-f]{64}`\.$' "$release_notes" || fail "candidate digest placeholder missing"
-[ "$(grep -Ec '^Candidate content digest: `[0-9a-f]{64}`\.$' "$release_notes")" -eq 1 ] || fail "candidate digest must appear exactly once"
+awk '{ sub(/\015$/, ""); print }' "$release_notes" | grep -Eq '^Candidate content digest: `[0-9a-f]{64}`\.$' || fail "candidate digest placeholder missing"
+[ "$(awk '{ sub(/\015$/, ""); print }' "$release_notes" | grep -Ec '^Candidate content digest: `[0-9a-f]{64}`\.$')" -eq 1 ] || fail "candidate digest must appear exactly once"
 grep -Fqi 'historical archive fingerprint' "$release_notes" || fail "historical 1.3.4 fingerprint label missing"
 grep -Fqi 'Repository-root documentation is not in the ZIP' "$release_notes" || fail "ZIP boundary documentation missing"
 grep -Fqi 'Mocked' "$walkthrough" || fail "walkthrough must label mocked evidence"
 for phrase in \
-  'owner approved the website walkthrough and deployment' \
-  'website, privacy, and terms bytes are deployed and live-byte verified'; do
+  'Marketplace publication was owner-confirmed' \
+  '1.4.4 website is deployed, and all seven public files are live-byte verified'; do
   grep -Fqi "$phrase" "$walkthrough" || fail "walkthrough omits post-approval deployment evidence: $phrase"
 done
 pass "1.4 model, privacy, candidate walkthrough, release-history, and ZIP-boundary documentation"
 
-python3 -m unittest discover -s "$plugin_dir/tests" -p 'test_advisor_*.py'
-python3 -m unittest "$package_test"
+(
+  # Synthetic suites must not select a user's installed WSL bridge by default.
+  # WSL-specific cases set WSL_DISTRO_NAME and their private config explicitly.
+  unset WSL_DISTRO_NAME
+  python3 -m unittest discover -s "$plugin_dir/tests" -p 'test_advisor_*.py'
+  python3 -m unittest "$package_test"
+)
 pass "Advisor behavior tests and 17 candidate packaging tests"
 
 sh -n "$script_dir"/*.sh
-[ "$(stat -f '%Lp' "$parent_inspector" 2>/dev/null || stat -c '%a' "$parent_inspector")" = 644 ] || fail "parent inspector must remain mode 100644"
+[ "$(git -C "$repo_dir" ls-files -s -- plugins/advisor/scripts/inspect-parent-runtime.sh | awk 'NR==1 { print $1 }')" = 100644 ] || fail "parent inspector must remain mode 100644"
 pass "all shell syntax and stderr-progress contract"
 printf '%s\n' "VERIFY PASSED: Advisor 1.4.5 consultation-only static contract"

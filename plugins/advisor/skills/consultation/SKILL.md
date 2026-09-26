@@ -1,6 +1,6 @@
 ---
 name: consultation
-description: "Use a bounded, read-only Astra consultation before an approved-plan checkpoint only when unresolved uncertainty has material impact; route Astra low -> medium -> high -> extra_high, and skip routine or already-settled work."
+description: "Use when an approved-plan checkpoint has unresolved material uncertainty requiring an authorization, challenge, second-opinion, or architecture-review consultation; standalone use requires an explicit advisor request. Skip routine or settled work."
 ---
 
 # Advisor consultation
@@ -16,11 +16,17 @@ zero-tool, non-recursive consultation only.
 During approved-plan execution, preflight each checkpoint. Consult only when
 there is unresolved uncertainty that a focused read or cheap test cannot settle
 and a wrong decision has material rework, compatibility, security, data,
-concurrency, migration, or public-interface impact. Skip routine/factual/status
-work, mechanical or formatting edits, settled-plan execution, cheap-check
-resolved questions, implementation already started, completion/reassurance,
-explicit no-delegation, and borderline cases. One checkpoint has one advisor
-opportunity before implementation; do not reopen it after implementation.
+concurrency, migration, or public-interface impact. Material decisions may
+involve interface or data-model boundaries, cross-module behavior, competing diagnoses,
+privacy or authorization, recovery, or irreversible-state changes;
+no category alone satisfies the uncertainty-and-impact gate. Skip routine
+factual/status/summarization requests, mechanical edits,
+formatting/renaming/docs synchronization, settled-plan execution without new
+uncertainty, cheap-check-resolved questions, implementation already started,
+completion/reassurance, final review owned elsewhere, explicit no-delegation,
+and borderline cases. Standalone tasks require an explicit advisor request.
+One checkpoint has one advisor opportunity before implementation; do not reopen
+it after implementation.
 
 Every issue starts at `gpt-6-astra` with `low`, then may move only through
 `medium`, `high`, and `extra_high` (runtime `xhigh`). A higher level requires an
@@ -64,6 +70,34 @@ token burn by cheap preflight, skip rules, compact packets, one chain/checkpoint
 one pass/level, no response retry, and stop-on-sufficient;
 the plugin does not claim a hard token cap.
 
+### Synthetic qualification — explicit CP4-C opt-in only
+
+This mode is only for a user-approved runtime qualification campaign. It is not
+an eligible route for an ordinary technical issue and must never be selected
+automatically. Every invocation must set
+`ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION=1` and pass
+`--qualification-scenario full-adjacent-escalation-v1` plus one UUIDv4
+`--qualification-run-id`. The wrapper accepts only active Astra `--level`
+routing, requires the same run ID and same checkpoint key at each level,
+and stores the chain under the private, run-specific
+`$HOME/.codex-advisor/qualification-<run-id>` root. It uses the ordinary
+configuration resolver, runtime inspector, response validator, and
+`advisor_chain.py` transitions; it does not write or repair an envelope or
+ledger to manufacture an escalation.
+
+The wrapper appends a clearly marked synthetic control to the packet. The child
+still has to produce a schema-valid response that passes the ordinary runtime
+checks. The envelope adds `synthetic_scenario: true`, the scenario ID, and run
+ID; preserve these fields in every receipt. After low, the primary may continue
+only when the accepted envelope requests the immediate next level, all three
+escalation explanations are nonblank, and inspection of that same qualification
+ledger confirms `next_action: reserve:<next-level>` under the same policy digest.
+Then invoke the same wrapper once with the same run ID and checkpoint key,
+`--chain-authorized`, and that adjacent level. Stop on null, mismatch, failure,
+or after `extra_high` (`xhigh`); never retry a level. A complete synthetic
+chain proves runtime-backed orchestration on this controlled scenario only. It
+does not prove real technical issue escalation judgment.
+
 Use one fresh, read-only, zero-tool advisor only when the task has a concrete material
 decision. The root owns architecture, implementation routing, verification, and acceptance.
 Before consultation, the root performs any repository or web research and supplies
@@ -103,6 +137,20 @@ question: <bounded decision question, or none>
 Consult when at least one positive trigger in the description applies. Skip when all
 applicable work is routine, the user forbids delegation, or eligibility is borderline.
 General quality is not a decision question.
+An ordinary bounded material architecture question is not, by itself, a trigger:
+approved-plan consultations still require meaningful unresolved uncertainty and
+material impact if the decision is wrong; standalone consultations require an
+explicit user request.
+Use targeted evidence first; if it leaves unresolved a material compatibility or concurrency
+question or a competing diagnosis, consult only when a wrong decision has material impact.
+Examples of material stakes include an unresolved security or trust boundary, an irreversible migration or data-loss decision, or a credible unresolved High-severity disagreement.
+Security adjacency or project importance alone is insufficient; generic advisor requests
+without a bounded material question are not a trigger. When a consultation already
+qualifies and only its legacy risk label is borderline, the borderline choice uses Standard.
+That compatibility label still routes to Astra low-first and never selects a legacy model;
+borderline eligibility still skips. The parent model and sandbox are irrelevant as evidence
+of child runtime; verify actual model, effort, read-only isolation, provenance, and tool-use
+evidence. An unavailable result cannot be rescued by retry, model substitution, or follow-up.
 
 There is no automatic completion consultation. Completion, reassurance, final
 review, and release verification remain owned by the primary agent and the
@@ -199,7 +247,16 @@ escalation: typed immediate-next-level object
    `run-advisor.sh` resolves the selected Astra level once, uses its fixed policy model
    and runtime effort, forces `--sandbox read-only`, starts a fresh
    `codex exec` thread using existing Codex authentication, and never reads or copies
-   authentication files:
+   authentication files. The wrapper runs a bounded `codex --version` preflight before
+   reserving the checkpoint and passes the same executable to the child. For a
+   Windows-hosted Codex CLI or Codex Desktop parent using WSL, install and use the
+   installed private bridge with the packaged `install-wsl-transport.sh`; do not create a temporary
+   bridge or export a per-chat executable path. The installer stores an owner-only
+   adapter and hash-checked configuration under the WSL home. When the parent runs in
+   Windows PowerShell, WSL does not inherit `CODEX_THREAD_ID`: pass the verified
+   current parent ID explicitly to `wsl.exe --exec env`, and send the packet on UTF-8
+   stdin. The wrapper obtains the configured Windows sessions directory automatically.
+   A failed transport or CLI preflight stops before reservation:
 
 ```sh
 /bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --level low --checkpoint-key <opaque-key> <<'ADVISOR_PACKET'
@@ -277,8 +334,9 @@ RISKS: <risks>
 FOLLOW-UP AREAS: <follow_up_areas>
 ```
 
-   Mandatory post-response inspection proves the exact frozen Astra model and effort,
-   read-only isolation, distinct-thread identity, `codex_exec` provenance,
+   Mandatory post-response inspection proves child identity and accepts only allowlisted
+   `codex_exec` or `Codex Desktop` provenance; it verifies the exact frozen Astra model
+   and effort, read-only isolation, and distinct-thread identity,
    and zero tool calls before validation can succeed. A schema or response-validation
    failure emits only its redacted failure `class` and `field` on stderr and stops.
    It performs no corrective retry, launches no second child for the same level,
@@ -319,10 +377,24 @@ decision: accept | modify | reject | blocked
 reason: <one sentence>
 ```
 
-8. After a valid, runtime-inspected result, any identified research or brainstorming
+8. Continue a valid escalation automatically in the same parent turn. Only continue
+   when the completed/accepted machine result has a non-null immediate `next_level`,
+   all three escalation explanations are nonblank, and a read-only ledger inspection
+   confirms the current level is completed and `next_action` is `reserve:<next_level>`
+   under the same policy digest. Invoke the fixed wrapper again with that adjacent
+   level, the same checkpoint key, and `--chain-authorized`; drain and validate that
+   child before deciding whether another adjacent level is requested. Pass only the
+   evidence needed to resolve the stated difficulty. Do not wait for Quang to say
+   “run the next level,” and do not bypass ledger validation. `next_level: null`,
+   `stop`, `failed`, `uncertain`, any runtime/schema mismatch, or any inconsistent
+   ledger is terminal; never retry a level or continue after `extra_high` (`xhigh`).
+   The wrapper remains one child per invocation; this escalation sequence is
+   orchestrated by the primary agent, not a shell loop. Preserve every level's
+   verified receipt and report only levels actually exercised.
+9. After a valid, runtime-inspected result, any identified research or brainstorming
    follow-up remains primary-agent work outside this consultation. An unavailable
    result cannot be rescued by a replacement advisor or same-checkpoint follow-up.
-9. The advisor may not spawn, route, research, implement, or review final work. Do
+10. The advisor may not spawn, route, research, implement, or review final work. Do
    not independently spawn a replacement or second advisor, implementer, or final
    reviewer as part of this consultation. There is no same-effort response retry.
 

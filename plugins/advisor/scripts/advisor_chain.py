@@ -51,7 +51,9 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 CODE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 SELECTOR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 ENTRY_STATUSES = frozenset(("reserved", "completed", "failed", "uncertain"))
-CHAIN_STATUSES = frozenset(("active", "completed", "complete", "uncertain", "blocked"))
+CHAIN_STATUSES = frozenset(
+    ("active", "completed", "complete", "failed", "uncertain", "blocked")
+)
 FAILURE_CODES = frozenset(
     (
         "launch_failed",
@@ -237,7 +239,21 @@ def _default_root(codex_home: str | os.PathLike[str] | None = None) -> Path:
     home = Path(codex_home or os.environ.get("CODEX_HOME") or Path.home() / ".codex")
     if not home.is_absolute():
         raise ChainError("CODEX_HOME must be absolute")
-    return home / "advisor" / "chains"
+    root = home / "advisor" / "chains"
+    # DrvFS without metadata reports 0777 even after chmod. Keep the ledger on
+    # WSL's private filesystem instead of weakening the owner-only checks.
+    if (
+        os.name != "nt"
+        and os.environ.get("WSL_DISTRO_NAME")
+        and len(home.parts) >= 3
+        and home.parts[1] == "mnt"
+        and len(home.parts[2]) == 1
+        and home.parts[2].isalpha()
+    ):
+        if root.exists() or root.is_symlink():
+            raise ChainUnavailable("existing chain ledger on Windows mount requires migration")
+        return Path.home() / ".codex-advisor" / "chains"
+    return root
 
 
 @contextmanager
@@ -541,8 +557,9 @@ class ChainStore:
             state["status"] = status
             state["next_action"] = "reconcile:no-replay"
             state["updated_at"] = _now()
+            state = _validate_state(state)
             _atomic_write(path, state)
-            return _validate_state(state)
+            return state
 
     def mark_failed(
         self,

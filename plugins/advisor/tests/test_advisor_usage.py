@@ -75,6 +75,7 @@ class UsageTests(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.home = self.base / "codex"
         self.paths = config.state_paths(self.home)
+        self.transport_calls = 0
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -237,6 +238,7 @@ class UsageTests(unittest.TestCase):
             process.usage_from_events(str(events), duration_ms=1)
 
     def transport(self, case, journal=False):
+        self.transport_calls += 1
         self.home.mkdir(mode=0o700, exist_ok=True)
         if journal:
             self.enable()
@@ -247,6 +249,10 @@ class UsageTests(unittest.TestCase):
         fake.chmod(0o700)
         env = {
             **os.environ,
+            "HOME": str(self.base),
+            "WSL_DISTRO_NAME": "",
+            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_TRANSPORT_CONFIG": str(self.base / "no-wsl-transport-config.json"),
             "PATH": f"{bindir}:{os.environ['PATH']}",
             "CODEX_HOME": str(self.home),
             "FAKE_COUNT": str(self.base / "count"),
@@ -258,6 +264,8 @@ class UsageTests(unittest.TestCase):
                 str(TRANSPORT),
                 "--tier",
                 "standard",
+                "--checkpoint-key",
+                f"usage-test-{self.transport_calls}",
                 "--parent-thread",
                 PARENT,
                 "--sessions-dir",
@@ -332,6 +340,10 @@ class UsageTests(unittest.TestCase):
         fake.chmod(0o700)
         env = {
             **os.environ,
+            "HOME": str(self.base),
+            "WSL_DISTRO_NAME": "",
+            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_TRANSPORT_CONFIG": str(self.base / "no-wsl-transport-config.json"),
             "PATH": f"{bindir}:{os.environ['PATH']}",
             "CODEX_HOME": str(self.home),
             "FAKE_COUNT": str(self.base / "count"),

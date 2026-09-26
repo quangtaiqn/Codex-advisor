@@ -90,8 +90,12 @@ class AdvisorCliTests(unittest.TestCase):
         self.attempts = self.root / "attempts"
         self.env = {
             **os.environ,
+            "HOME": str(self.home),
             "CODEX_HOME": str(self.home),
             "CODEX_THREAD_ID": PARENT,
+            "WSL_DISTRO_NAME": "",
+            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_TRANSPORT_CONFIG": str(self.home / "no-wsl-transport-config.json"),
             "PATH": f"{self.binary}:{os.environ['PATH']}",
             "FAKE_CODEX_LOG": str(self.log),
             "FAKE_ATTEMPT_FILE": str(self.attempts),
@@ -145,6 +149,24 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertEqual(payload["parent_runtime"]["sandbox_policy_type"], "read-only")
         self.assertIn("inspecting parent runtime evidence", doctor.stderr)
         self.assertFalse((self.home / "advisor").exists())
+        self.assertEqual(self.invocations(), [])
+
+    def test_doctor_waits_for_slow_parent_session_scan(self) -> None:
+        slow_find = self.binary / "find"
+        slow_find.write_text(
+            "#!/bin/sh\nsleep 2.2\nexec /usr/bin/find \"$@\"\n",
+            encoding="utf-8",
+        )
+        slow_find.chmod(0o700)
+        doctor = self.run_cli(
+            "--json",
+            "doctor",
+            env={**self.env, "WSL_DISTRO_NAME": ""},
+        )
+        self.assertEqual(doctor.returncode, 0, doctor.stderr)
+        payload = json.loads(doctor.stdout)
+        self.assertEqual(payload["parent_runtime"]["status"], "available")
+        self.assertEqual(payload["parent_runtime"]["thread_id"], PARENT)
         self.assertEqual(self.invocations(), [])
 
     def test_pristine_default_resolve_works_on_newer_cli_without_setup(self) -> None:

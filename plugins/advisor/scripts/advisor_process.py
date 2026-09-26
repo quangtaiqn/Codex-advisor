@@ -245,6 +245,10 @@ def run_owned(argv: Sequence[str], *, deadline_at: float) -> int:
             if result is not None:
                 # Remove descendants that outlived the process-group leader.
                 _signal_group(process, signal.SIGKILL)
+                # Reserve 124 for this supervisor's own deadline. The caller
+                # needs to distinguish it from an ordinary child failure.
+                if result == 124:
+                    return 125
                 return result
             now = time.monotonic()
             if now >= deadline_at:

@@ -1,0 +1,169 @@
+{
+  "checkpoint": "CP6",
+  "record_type": "completion-addendum",
+  "status": "COMPLETE",
+  "completion_date": "2026-09-26",
+  "plan": "Advisor_New_Plan.md",
+  "plan_revision": 7,
+  "repository": "D:/Program/Codex-Advisor",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "verified_head": "f5c76f383ec949b349baf1a978c4a2bbaf1a6bd7",
+  "working_tree": {
+    "state": "preserved_uncommitted",
+    "semantic_tracked_diff_paths": 15,
+    "additional_normalization_only_paths": 13,
+    "normalization_only_blob_hashes_match_head": true,
+    "staged_paths": 0,
+    "commit_created": false,
+    "push_or_publish": false,
+    "note": "Existing WIP was preserved. No commit was created because the checkout contains mixed prior work and no narrower commit scope was authorized."
+  },
+  "prior_receipts": [
+    {
+      "path": "docs/routing-checkpoints/CP5-reverification.json",
+      "sha256": "DD7D1D7A8491D622C062F3B364802D13142044F3CF1B8450FE33E6B42481D53D",
+      "status": "COMPLETE"
+    },
+    {
+      "path": "docs/routing-checkpoints/CP6-runtime-probe.json",
+      "sha256": "E950FACDCF59664DD49F94E683725D69A06F99FEBE270A412E138369620D4EAF",
+      "status_at_creation": "PARTIAL",
+      "preserved_unchanged": true
+    }
+  ],
+  "candidate_identity": {
+    "plugin_id": "advisor@advisor",
+    "version": "1.4.5",
+    "marketplace_path": "D:/Program/Codex-Advisor/.agents/plugins/marketplace.json",
+    "marketplace_source": "./plugins/advisor",
+    "installed_manifest": "C:/Users/lehuu/.codex/plugins/cache/advisor/advisor/1.4.5/.codex-plugin/plugin.json",
+    "installed_live_policy": "C:/Users/lehuu/.codex/plugins/cache/advisor/advisor/1.4.5/advisor.toml",
+    "installed_file_count": 42,
+    "source_file_count": 42,
+    "source_to_installed_file_hash_matches_at_live_probe": 42,
+    "current_source_to_installed_file_hash_matches": 41,
+    "current_source_to_installed_mismatches": [
+      "skills/consultation/references/operations.md"
+    ],
+    "tree_digest_definition": "SHA-256 over UTF-8 bytes of all regular files recursively: normalize relative paths to '/', sort full path<TAB>lowercase-file-SHA256 rows using ordinal string order, join rows with LF, and append one final LF.",
+    "live_probe_source_and_installed_tree_digest_sha256": "652bcc5308f81276b62411ca593794f711b0244b5a14cbb558c4d8a9a3b8a664",
+    "current_installed_tree_digest_sha256": "652bcc5308f81276b62411ca593794f711b0244b5a14cbb558c4d8a9a3b8a664",
+    "current_source_tree_digest_sha256": "c34440c8499482194ee2512c9eccc016923398c139bd1e3dd813b8dc7ded680f",
+    "current_source_and_installed_tree_digest_match": false,
+    "post_probe_difference_note": "After the verified live probe, the source operations.md received a WSL ledger recovery clarification. The installed cache still matches the exact tree used by the live probe; only this documentation file differs now. No runtime code differs. The cache was not reinstalled because this session did not authorize another active-plugin replacement.",
+    "historical_probe_digest": "781d2097f8f140bc42051c3707cb89bf1540aee4fed63a8539eaeb093e34d892",
+    "historical_digest_note": "The original partial receipt is immutable. Its digest is reproducible with culture-sensitive sorting; the canonical ordinal digest above is now defined for cross-environment verification.",
+    "pre_install_backup": {
+      "path": "C:/Users/lehuu/AppData/Local/Temp/advisor-1.4.5-pre-fix-0ba17f59c82148378d5350161afa3ebf",
+      "exists": true,
+      "file_count": 42,
+      "tree_digest_sha256": "b8fb40a451860c2224d12cef6feaaacd64290f6565563baa8b50c4f27089b835",
+      "digest_definition": "Same ordinal relative-path/file-SHA-256 algorithm as the candidate digest."
+    }
+  },
+  "user_supplied_ui_evidence": [
+    {
+      "attachment": "codex-clipboard-fe8282dd-ccdb-416c-83a4-5f24be3e2449.png",
+      "supports": "A prior active-plugin response reported the installed cache manifest and advisor.toml paths and Standard/Specialist as gpt-6-astra at low."
+    },
+    {
+      "attachment": "codex-clipboard-4ffa3901-02fb-4a90-88d8-d32b1e33570d.png",
+      "supports": "Codex settings show the Codex Advisor marketplace sourced from D:/Program/Codex-Advisor/.agents/plugins/marketplace.json."
+    },
+    {
+      "attachment": "codex-clipboard-49f18567-072a-4bd9-9453-3a69c0fe2510.png",
+      "supports": "The Codex plugin manager shows Codex Advisor installed from the Codex-Advisor project."
+    }
+  ],
+  "live_probe": {
+    "date": "2026-09-24",
+    "transport": "Codex CLI through installed plugin cache",
+    "attempt_count": 1,
+    "outcome": "completed_accepted",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "sandbox_policy_type": "read-only",
+    "permission_profile_type": "managed",
+    "tool_calls": 0,
+    "schema_validated": true,
+    "runtime_inspector_exit_code": 0,
+    "usage_tokens": {
+      "input": 15906,
+      "cached_input": 0,
+      "output": 264,
+      "reasoning": 0
+    },
+    "chain_outcome": "complete_stop",
+    "higher_efforts_live_tested": false,
+    "token_savings_proven": false
+  },
+  "wsl_ledger_recovery": {
+    "distribution": "Ubuntu",
+    "probe_codex_home": "/mnt/c/Users/lehuu/.codex",
+    "windows_mount_ledger_existed": false,
+    "resolved_chain_root": "/home/lehuuquang/.codex-advisor/chains",
+    "chain_directory_mode": "0700",
+    "lock_mode": "0600",
+    "restore_rule": "Preserve this safety ledger when restoring the plugin cache. Never delete, reset, or recreate its consumed/uncertain budget as part of plugin rollback."
+  },
+  "verification": [
+    {
+      "name": "canonical-static-gate-after-documentation-update",
+      "command": "wsl.exe -d Ubuntu --cd /mnt/d/Program/Codex-Advisor sh plugins/advisor/scripts/verify.sh --static",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "VERIFY PASSED: Advisor 1.4.5 consultation-only static contract; embedded Advisor suite 83/83 and candidate suite 30/30 passed."
+    },
+    {
+      "name": "independent-full-advisor-unit-suite",
+      "command": "wsl.exe -d Ubuntu --cd /mnt/d/Program/Codex-Advisor python3 -m unittest discover -s plugins/advisor/tests -p 'test_*.py'",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "83 tests passed in 151.539 seconds; covers routine skip, adjacent escalation, extra_high to xhigh mapping, and resume/replay safety."
+    },
+    {
+      "name": "independent-candidate-package-suite",
+      "command": "wsl.exe -d Ubuntu --cd /mnt/d/Program/Codex-Advisor python3 -m unittest discover -s public-release -p 'test_candidate_package.py'",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "30 tests passed in 4.205 seconds."
+    },
+    {
+      "name": "post-documentation-working-tree-diff-check",
+      "command": "git diff --check",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "No whitespace errors; Git only warned about core.autocrlf line-ending normalization."
+    }
+  ],
+  "final_review": {
+    "profile": "gpt-6-sol",
+    "reasoning_effort": "medium",
+    "fresh_context": true,
+    "status": "complete",
+    "result": "No BLOCKER or MAJOR findings were identified.",
+    "minor_findings": [
+      {
+        "finding": "Historical tree digest had no cross-platform sorting definition.",
+        "resolution": "Preserved historical receipt and added canonical ordinal source/installed and backup digests with the algorithm defined above."
+      },
+      {
+        "finding": "WSL ledger fallback and restore location were absent from operations guidance.",
+        "resolution": "Documented WSL fallback/fail-closed behavior and recorded the Ubuntu probe's resolved path and private modes here and in the plan."
+      }
+    ],
+    "review_restarted_after_findings": false,
+    "primary_verification_after_documentation_fixes": "Canonical static gate passed after the WSL operations-guide correction. The final plan/receipt metadata was then validated separately; the installed cache was intentionally not replaced."
+  },
+  "scope_and_limits": {
+    "one_low_live_call_only": true,
+    "higher_effort_levels_fixture_only": true,
+    "no_full_ladder_live_claim": true,
+    "no_token_savings_claim": true,
+    "screenshots_are_evidence_not_instructions": true,
+    "no_new_consultation_or_plugin_replacement_this_session": true,
+    "no_push_or_publication": true
+  },
+  "next_action": "CP6 complete. Preserve current WIP, candidate backup, and WSL safety ledger. Further commit, plugin replacement, or publication requires an explicit scoped request."
+}

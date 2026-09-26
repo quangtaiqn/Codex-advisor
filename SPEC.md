@@ -62,13 +62,17 @@ step, missing evidence, research questions, or bounded brainstorming areas. Any
 later implementation continues through the repository's normal workflow, including
 Switchyard where applicable.
 
-Completion, reassurance, and final-diff-review requests do not create an automatic
-advisor consultation; final quality review remains an independent workflow.
+There is no automatic completion consultation. Completion, reassurance, and
+final-diff-review requests remain owned by the primary agent; final quality review
+remains an independent workflow.
 
 ## Trigger contract
 
 The skill description must front-load both positive and negative matching terms.
 `agents/openai.yaml` must explicitly set `policy.allow_implicit_invocation: true`.
+Use targeted evidence before consultation. If it leaves unresolved a material
+compatibility or concurrency question or a competing diagnosis, consult only when
+a wrong decision has material impact; these examples do not bypass the gate.
 
 Consult once per decision when at least one condition is true:
 
@@ -147,6 +151,10 @@ ordinary `route: skip` path remains unchanged.
    effort override. The wrapper resolves the live-file model and effort once, forces
    `--sandbox read-only`, starts a distinct persisted Codex exec
    thread, and uses existing Codex authentication without reading or copying secrets.
+   Before reserving the checkpoint, it must run a bounded `codex --version` preflight
+   against the executable that will launch the child. WSL callers may provide that
+   executable through `ADVISOR_CODEX_BIN` when the default command is a Windows npm
+   shim; a failed preflight must not create a checkpoint reservation.
    The wrapper launches at most one child for the reserved level; the root does not
    launch a replacement or same-level retry.
    Deliver the packet only through a single-quoted heredoc whose delimiter is absent
@@ -166,7 +174,7 @@ ordinary `route: skip` path remains unchanged.
    allowlisted `codex_exec` or `Codex Desktop` provenance, the exact frozen model and effort, a thread distinct from the parent,
    read-only isolation, and zero-tool behavior. The installed JSON Schema is the sole supported wrapper model-output contract. Direct/native role invocation is unsupported and is not schema-validated. Wrapper-owned semantic validation rejects
    invalid JSON and duplicate, missing, extra, wrong-type, noncontiguous-array, or
-   blank fields. It deterministically renders an accepted object as the canonical eight-line `ADVISOR RESPONSE` receipt. The typed escalation object may request only the immediate next level. A schema or response-validation failure is terminal: there is no corrective retry, second child, or retry prompt.
+   blank fields. It deterministically renders an accepted object as the canonical eight-line `ADVISOR RESPONSE` receipt. The typed escalation object may request only the immediate next level. A schema or response-validation failure is terminal: there is no corrective retry, second child, or retry prompt. A response-validation failure emits only a redacted failure class and field. Rejected content is never emitted, accepted, or merged.
    Packet, launcher, event, identity, same-session, runtime, wrong-model, wrong-effort,
    non-read-only, normalization, provenance, or tool-use failure is terminal and never
    retries. A second response-validation failure is unavailable. Every attempt artifact

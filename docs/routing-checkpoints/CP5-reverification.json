@@ -1,0 +1,68 @@
+{
+  "checkpoint": "CP5",
+  "record_type": "verification-addendum",
+  "status": "COMPLETE",
+  "verification_date": "2026-09-23",
+  "plan": "Advisor_New_Plan.md",
+  "plan_revision": 5,
+  "repository": "D:/Program/Codex-Advisor",
+  "branch": "codex/advisor-astra-routing",
+  "baseline_commit": "7494786b9aef8c7d375ed9925beef8e46392811b",
+  "verified_head": "f5c76f383ec949b349baf1a978c4a2bbaf1a6bd7",
+  "original_receipt": {
+    "path": "docs/routing-checkpoints/CP5.json",
+    "sha256": "77B513A588C3CFFCBBE2131FDD800FD6B931C6D202B59A3CDF35F12AAB0BD05F",
+    "preserved_unchanged": true
+  },
+  "checks": [
+    {
+      "name": "canonical-static-gate",
+      "command": "wsl.exe -d Ubuntu --cd /mnt/d/Program/Codex-Advisor sh plugins/advisor/scripts/verify.sh --static",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "VERIFY PASSED: Advisor 1.4.5 consultation-only static contract; embedded Advisor unit suite 82/82 and candidate suite 30/30 passed."
+    },
+    {
+      "name": "independent-full-advisor-unit-suite",
+      "command": "wsl.exe -d Ubuntu --cd /mnt/d/Program/Codex-Advisor python3 -m unittest discover -s plugins/advisor/tests -p 'test_*.py'",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "82 tests passed."
+    },
+    {
+      "name": "independent-candidate-package-suite",
+      "command": "wsl.exe -d Ubuntu --cd /mnt/d/Program/Codex-Advisor python3 -m unittest discover -s public-release -p 'test_candidate_package.py'",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "30 tests passed."
+    },
+    {
+      "name": "playwright-desktop-and-mobile",
+      "command": "PLAYWRIGHT_LAST_RUN_OUTPUT_FILE=<OS-temp>\\.last-run.json npm.cmd test -- --reporter=line --output <OS-temp>",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "52 tests passed across desktop and mobile projects in 17.1 seconds.",
+      "artifacts_directory": "C:/Users/lehuu/AppData/Local/Temp/codex-advisor-cp5-playwright-1ff064188ba34e6b8de57e2f4e4758db",
+      "execution_note": "The initial in-repository output attempt and an unprivileged temporary-output retry stopped with sandbox EPERM before test execution. The successful run wrote Playwright state/results to OS Temp using the approved elevated execution path; these harness errors were not test failures."
+    },
+    {
+      "name": "working-tree-diff-whitespace-check",
+      "command": "git diff --check",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "No whitespace errors; Git emitted only line-ending normalization warnings under core.autocrlf=true."
+    }
+  ],
+  "scope_review": {
+    "result": "PASS",
+    "baseline_to_verified_head_changed_paths": 55,
+    "finding": "Committed migration changes remain in routing/plugin behavior, policy, tests, receipts, release documentation and public-site policy copy. No authentication path or static visual asset changed. Role TOML files are unchanged.",
+    "current_uncommitted_wip": "Preserved. Among pre-existing modified tracked paths, thirteen contain semantic documentation/routing/transport/test/Playwright-config edits and thirteen additional modified-status paths have blob hashes identical to HEAD under core.autocrlf=true. The two pre-existing untracked plan artifacts were retained; Advisor_New_Plan.md was updated per Quang's request, while docs/advisor-execution-migration-plans.md was left untouched. This verification added only this supplemental receipt. No unrelated WIP was reset, staged or committed.",
+    "source_adjustments_in_this_verification": [
+      "Fixed the documentation typo 'checkpoint ledge' to 'checkpoint ledger'.",
+      "Fixed the documentation typo 'advisor-sol, o' to 'advisor-sol, or'."
+    ]
+  },
+  "live_runtime_proven": false,
+  "next_action": "Proceed to CP6 bounded live verification and final review. No plugin installation/replacement, push, or publication was performed."
+}

@@ -1,0 +1,75 @@
+{
+  "checkpoint": "CP6",
+  "record_type": "bounded-live-runtime-probe",
+  "status": "PARTIAL",
+  "date": "2026-09-24",
+  "repository": "D:/Program/Codex-Advisor",
+  "branch": "codex/advisor-astra-routing",
+  "head_commit": "f5c76f383ec949b349baf1a978c4a2bbaf1a6bd7",
+  "working_tree_note": "Existing uncommitted WIP was preserved; the ledger fix and this receipt are uncommitted.",
+  "installed_plugin": {
+    "id": "advisor@advisor",
+    "version": "1.4.5",
+    "path": "C:/Users/lehuu/.codex/plugins/cache/advisor/advisor/1.4.5",
+    "file_count": 42,
+    "tree_sha256": "781d2097f8f140bc42051c3707cb89bf1540aee4fed63a8539eaeb093e34d892",
+    "ledger_script_sha256": "5d722cba629ef3defad9cf4373189e5b8a8757b4bed2066d0cd7f86d5b6abc9d",
+    "ledger_script_matches_repository": true,
+    "pre_fix_cache_backup": "C:/Users/lehuu/AppData/Local/Temp/advisor-1.4.5-pre-fix-0ba17f59c82148378d5350161afa3ebf"
+  },
+  "checks": [
+    {
+      "name": "ledger-unit-tests-wsl",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "7/7 tests passed, including WSL Windows-mount private-ledger and replay checks."
+    },
+    {
+      "name": "canonical-static-gate",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "VERIFY PASSED; embedded Advisor suite 83/83 and candidate suite 30/30 passed."
+    },
+    {
+      "name": "installed-plugin-parent-preflight",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "Parent identified with workspace-write sandbox and managed permissions."
+    },
+    {
+      "name": "one-installed-plugin-live-inference",
+      "status": "PASS",
+      "exit_code": 0,
+      "checkpoint_key": "cp6-one-probe-20260924-01a0d28c",
+      "consultation_id": "fe1cc241-19e6-4ebe-8c6f-2bc34d73d1fc",
+      "child_thread_id": "01a0d299-8af8-7800-b0fe-f37c44d3216e",
+      "parent_thread_id": "01a0d28c-9276-7d63-93a8-a36860801f4b",
+      "attempt_count": 1,
+      "status_from_envelope": "completed",
+      "outcome": "accepted",
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "sandbox_policy_type": "read-only",
+      "permission_profile_type": "managed",
+      "tool_calls": 0,
+      "schema_validated": true,
+      "usage_tokens": {
+        "input": 15906,
+        "cached_input": 0,
+        "output": 264,
+        "reasoning": 0
+      },
+      "runtime_inspector_rerun_exit_code": 0
+    },
+    {
+      "name": "private-wsl-ledger",
+      "status": "PASS",
+      "exit_code": 0,
+      "result": "WSL ledger parent and chains directory mode 700, lock mode 600; low entry completed; chain status complete and next_action stop."
+    }
+  ],
+  "live_runtime_proven": true,
+  "scope_of_proof": "One installed-plugin Codex CLI Astra/Low consultation with verified child runtime evidence. No higher-effort inference was run. Desktop reload or UI activation was not verified.",
+  "cp6_complete": false,
+  "remaining": "Other CP6 checks and independent final review remain pending; the user requested no skills after this test in this session. No push or publication was performed."
+}
