@@ -264,6 +264,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "_response-schema":
+            # The provider template uses the Structured Outputs subset. Narrow
+            # its nullable enum here; conditional/nonblank escalation semantics
+            # are always enforced by validate_response after runtime inspection.
             from advisor_admission import bounded_file
             from advisor_settings import normalize_level, next_level
             path = Path(__file__).resolve().parent.parent / "advisor-response.schema.json"

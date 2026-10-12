@@ -15,22 +15,18 @@
   "properties": {
     "recommendation": {
       "type": "string",
-      "minLength": 1,
       "pattern": "\\S"
     },
     "why": {
       "type": "string",
-      "minLength": 1,
       "pattern": "\\S"
     },
     "strongest_objection": {
       "type": "string",
-      "minLength": 1,
       "pattern": "\\S"
     },
     "change_my_mind": {
       "type": "string",
-      "minLength": 1,
       "pattern": "\\S"
     },
     "acceptance_checks": {
@@ -38,18 +34,15 @@
       "minItems": 1,
       "items": {
         "type": "string",
-        "minLength": 1,
         "pattern": "\\S"
       }
     },
     "risks": {
       "type": "string",
-      "minLength": 1,
       "pattern": "\\S"
     },
     "follow_up_areas": {
       "type": "string",
-      "minLength": 1,
       "pattern": "\\S"
     },
     "escalation": {
@@ -63,6 +56,10 @@
       ],
       "properties": {
         "next_level": {
+          "type": [
+            "string",
+            "null"
+          ],
           "enum": [
             null,
             "medium",
@@ -79,34 +76,7 @@
         "required_resolution": {
           "type": "string"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "next_level": {
-                "type": "string"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "reason": {
-                "minLength": 1,
-                "pattern": "\\S"
-              },
-              "unresolved_difficulty": {
-                "minLength": 1,
-                "pattern": "\\S"
-              },
-              "required_resolution": {
-                "minLength": 1,
-                "pattern": "\\S"
-              }
-            }
-          }
-        }
-      ]
+      }
     }
   }
 }

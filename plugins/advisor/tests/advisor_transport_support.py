@@ -81,8 +81,28 @@ assert workdir.is_dir() and workdir.parent.name.startswith("run.")
 prompt = sys.stdin.read()
 log = Path(os.environ["FAKE_INVOCATIONS"])
 rows = json.loads(log.read_text()) if log.exists() else []
-rows.append({"model": model, "effort": effort, "prompt": prompt})
+schema = json.loads(Path(args[args.index("--output-schema") + 1]).read_text())
+rows.append({"model": model, "effort": effort, "prompt": prompt, "output_schema": schema})
 log.write_text(json.dumps(rows))
+
+# Inspect the schema actually sent by the launcher, not a template-only check.
+# Reject documented unsupported composition; this is not a live provider probe
+# or an exhaustive implementation of the provider's JSON Schema validator.
+def provider_schema(node):
+    unsupported = set(node) & {"allOf", "not", "dependentRequired", "dependentSchemas",
+                               "if", "then", "else"}
+    if unsupported:
+        raise ValueError("unsupported provider schema keywords: " + ", ".join(sorted(unsupported)))
+    assert "type" in node, "provider schema node must declare a type"
+    if node["type"] == "object":
+        assert node["additionalProperties"] is False
+        assert set(node["required"]) == set(node["properties"])
+        for child_schema in node["properties"].values():
+            provider_schema(child_schema)
+    if node["type"] == "array":
+        provider_schema(node["items"])
+assert schema["type"] == "object"
+provider_schema(schema)
 attempt = len(rows)
 case = os.environ.get("FAKE_CASE", "valid")
 
@@ -132,6 +152,10 @@ if case in {"adjacent", "ambiguous-adjacent"}:
     response["escalation"] = {"next_level": {"low":"medium", "medium":"high", "high":"extra_high", "xhigh":None}[effort],
         "reason":"material ambiguity", "unresolved_difficulty":"ordering remains unresolved", "required_resolution":"compare state traces"}
 if case == "skip": response["escalation"]["next_level"] = "high"
+if case.startswith("blank-escalation-"):
+    response["escalation"] = {"next_level":"medium", "reason":"material ambiguity",
+        "unresolved_difficulty":"ordering remains unresolved", "required_resolution":"compare state traces"}
+    response["escalation"][case.removeprefix("blank-escalation-")] = " \t "
 if case == "terminal": response["escalation"]["next_level"] = "extra_high"
 if case == "blank": response["recommendation"] = "  "
 if case == "malformed": response.pop("escalation")

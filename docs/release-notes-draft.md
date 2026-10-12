@@ -2,7 +2,9 @@
 
 Repository-only candidate; not released, deployed, installed or live-verified. Receives module/lifecycle/privacy/license fixes, ports local Astra adjacent escalation and all supported aliases, uses one attempt per level, removes active policy/chain monolith dependencies, and defers all durable ledger/replay/resume work to B. transport contract 1.5 extends envelope schema 3. Historical receipts remain tied to their original SHA.
 
-Candidate content digest: `50c2c84d847e2516f3121d3d02c59e30b6357489fb29c609ed9c976fc858aaf9`.
+A-P1-01 follow-up removes unsupported conditional composition from the provider output schema, declares the nullable per-level escalation enum explicitly, and preserves local semantic validation. Offline launcher regression checks do not establish live provider acceptance.
+
+Candidate content digest: `8ec02d62df75d95932841f182589665402879500c006c17de1107dd7f48d42e4`.
 
 # Historical upstream release record
 

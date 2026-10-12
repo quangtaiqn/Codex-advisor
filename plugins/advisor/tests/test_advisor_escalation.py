@@ -30,6 +30,10 @@ class AdvisorEscalationTests(AdvisorTransportTestCase):
             self.assertEqual(len(payload["attempts"]),1)
         self.assertEqual([(r["model"],r["effort"]) for r in self.rows()],
                          [("gpt-6-astra","low"),("gpt-6-astra","medium"),("gpt-6-astra","high"),("gpt-6-astra","xhigh")])
+        for row, allowed in zip(self.rows(), ([None,"medium"], [None,"high"], [None,"extra_high"], [None]), strict=True):
+            observed = row["output_schema"]["properties"]["escalation"]["properties"]["next_level"]
+            self.assertEqual(observed["type"], ["string", "null"])
+            self.assertEqual(observed["enum"], allowed)
         final = json.loads(previous.read_text())
         self.assertIsNone(final["escalation"]["next_level"])
         terminal = self.run_transport("--level","extra_high","--previous-result",str(previous),"--authorize-escalation")
@@ -108,13 +112,50 @@ class AdvisorEscalationTests(AdvisorTransportTestCase):
             self.assertEqual(len(self.rows()), 1, key)
 
     def test_invalid_responses_and_runtime_guards_are_one_attempt_terminal(self):
-        for case in ("skip","blank","malformed","duplicate-response","wrong-model","wrong-effort","wrong-sandbox","wrong-permission","wrong-provenance","duplicate-child","reroute","tool"):
+        for case in ("skip","blank","malformed","duplicate-response","wrong-model","wrong-effort","wrong-sandbox","wrong-permission","wrong-provenance","duplicate-child","reroute","tool",
+                     "blank-escalation-reason", "blank-escalation-unresolved_difficulty", "blank-escalation-required_resolution"):
             self.invocations.unlink(missing_ok=True)
             result=self.run_transport("--level","low",case=case)
             self.assertNotEqual(result.returncode,0,case)
             self.assertEqual(len(self.rows()),1,case)
             self.assertEqual(len(json.loads(result.stdout)["attempts"]),1,case)
+            if case.startswith("blank-escalation-"):
+                self.assertEqual(json.loads(result.stdout)["attempts"][0]["outcome"], "rejected_response")
+                self.assertIn("escalation request must explain the unresolved difficulty", result.stderr)
         self.assertEqual(self.rows()[0]["effort"],"low")
+
+    def test_local_response_semantics_remain_strict_with_flat_provider_schema(self):
+        response = {"recommendation":"path", "why":"reason", "strongest_objection":"risk",
+                    "change_my_mind":"evidence", "acceptance_checks":["check"], "risks":"none",
+                    "follow_up_areas":"none"}
+        path = self.root / "local-response.json"
+        cases = [("low", None, None, None), ("low", "medium", None, None),
+                 ("extra_high", None, None, None),
+                 ("low", "high", None, "immediate next level"),
+                 ("medium", "medium", None, "immediate next level"),
+                 ("extra_high", "high", None, "extra_high is terminal")]
+        cases += [("low", "medium", field, "must explain the unresolved difficulty")
+                  for field in ("reason", "unresolved_difficulty", "required_resolution")]
+        for level, next_level, blank, error in cases:
+            with self.subTest(level=level, next_level=next_level, blank=blank):
+                escalation = {"next_level":next_level, "reason":"ambiguity" if next_level else "",
+                              "unresolved_difficulty":"ordering" if next_level else "",
+                              "required_resolution":"compare" if next_level else ""}
+                if blank:
+                    escalation[blank] = " \t "
+                path.write_text(json.dumps({**response, "escalation":escalation}))
+                result = subprocess.run(
+                    [str(self.config_wrapper), "--json", "_validate-response", "--level", level, "--file", str(path)],
+                    env=self.env, text=True, capture_output=True, check=False, timeout=10,
+                )
+                self.assertEqual(result.returncode, 2 if error else 0, result.stderr)
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload["status"], "unavailable" if error else "ok")
+                if error:
+                    self.assertIn(error, payload["error"])
+                else:
+                    self.assertEqual(payload["response"]["escalation"], escalation)
+        self.assertEqual(self.rows(), [])
 
     def test_rejected_launch_cannot_forge_accepted_receipt_for_next_spawn(self):
         accepted = json.loads(self.run_transport("--level", "low", case="adjacent").stdout)
