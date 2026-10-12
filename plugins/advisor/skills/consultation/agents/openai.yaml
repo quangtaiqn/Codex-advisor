@@ -1,6 +1,6 @@
 interface:
   display_name: "Advisor Consultation"
-  short_description: "Checkpoint-gated Astra advice: low -> medium -> high -> extra_high"
-  default_prompt: "Use $consultation for one bounded approved-plan checkpoint decision; start Astra at low and record the verified disposition."
+  short_description: "Astra low-first advice for unresolved material decisions"
+  default_prompt: "Use $consultation for one qualified bounded issue starting at Astra/low; verify the result and stop when sufficient."
 policy:
   allow_implicit_invocation: true

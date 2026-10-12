@@ -195,8 +195,10 @@ agent_role=$(jq -er '
 model=$(jq -er '
   if (.runtime? | type == "object") then .runtime.model else .model end
 ' "$evidence_abs") || fail 'evidence did not include a model'
+effort=$(jq -er 'if (.runtime? | type == "object") then .runtime.effort else .effort end' "$evidence_abs") || fail 'evidence did not include effort'
+case "$effort" in low|medium|high|xhigh) ;; *) fail 'observed effort outside Astra policy' ;; esac
 case "$agent_role:$model" in
-  advisor-astra:gpt-6-astra) ;;
+  advisor-terra:gpt-6-astra|advisor-sol:gpt-6-astra|advisor-astra:gpt-6-astra) ;;
   *) fail 'evidence role/model pair is not allowed for clean-host capture' ;;
 esac
 printf '%s\n' "$thread_id" | LC_ALL=C grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || fail "thread_id is not a UUID: $thread_id"
@@ -209,6 +211,7 @@ if ! CODEX_HOME="$codex_home" sh "$inspector_script" \
   --sessions-dir "$codex_home/sessions" \
   --expected-role "$agent_role" \
   --expected-model "$model" \
+  --expected-effort "$effort" \
   --expected-parent "$parent_thread_id" \
   "$thread_id" > "$inspected_runtime"; then
   fail 'runtime inspection against the fresh CODEX_HOME failed'

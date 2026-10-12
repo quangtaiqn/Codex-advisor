@@ -1,77 +1,44 @@
-# Advisor model configuration
+# Astra model configuration — phase A
 
-Advisor's normal consultation configuration is the live `advisor.toml` bundled beside
-the installed skill. Repository-root documentation is not part of the ZIP.
+| Logical level | Model | Runtime effort |
+| --- | --- | --- |
+| low | gpt-6-astra | low |
+| medium | gpt-6-astra | medium |
+| high | gpt-6-astra | high |
+| extra_high | gpt-6-astra | xhigh |
 
-## Defaults and evidence
-
-`advisor.toml` has exactly one `[advisor]` table with the fixed model
-`gpt-6-astra` and `effort_ladder = ["low", "medium", "high", "xhigh"]`.
-`extra_high` is the skill label for runtime `xhigh`. Low is the direct entry point;
-the other levels require an adjacent escalation recorded by the checkpoint ledger.
-The helper freezes the policy digest for each pass. Local state, discovery, catalog,
-canary, preset, and legacy saved selections cannot change active routing. Plugin
-updates or reinstalling can replace the bundled policy.
-
-This grants only permission to attempt the real consultation: the child must still
-pass exact runtime model, effort, read-only, zero-tool, and response-schema checks.
-Catalog presence is documentation, not an entitlement.
-
-```sh
-sh scripts/advisor-config.sh show
-sh scripts/advisor-config.sh doctor
+```toml
+[advisor]
+model = "gpt-6-astra"
+effort_ladder = ["low", "medium", "high", "xhigh"]
 ```
 
-The helper reports the active path and digest. It never automatically upgrades or
-falls back. The old `--role advisor-terra`, `--role advisor-sol`, and
-`--role advisor-astra` names are compatibility aliases that all enter Astra/low;
-they are not separate model routes.
+Settings, resolver and level mapping belong to advisor_settings.py. advisor_state.py owns pair/response validation and common typed errors; advisor_catalog.py owns diagnostic model/capability records. advisor_config.py is the facade/CLI. run-advisor.sh owns admission and runtime acceptance using advisor_admission.py. No monolithic policy wrapper remains.
 
-The eligibility decision is checkpoint-based: consult only when unresolved uncertainty
-has material impact after cheap checks. Routine, settled, implementation-started,
-completion/reassurance, and no-delegation work is skipped.
+The root owns architecture, implementation routing, verification, and acceptance. Advisors are read-only, non-authoritative, use zero tools, and never delegate, implement, deploy, or perform final review. The root performs any repository or web research and includes relevant evidence and source references in a bounded decision packet. When evidence is insufficient, the advisor may recommend only a concrete research-first next step and list missing evidence under FOLLOW-UP AREAS, outside this consultation. An unavailable result cannot be rescued by a higher level or a fallback model.
 
-## Advanced legacy tools
+The sole supported wrapper model-output format is one JSON object. Wrapper-owned semantic validation checks exact keys, types, nonblank strings/checks, duplicate fields and structured escalation before rendering the canonical eight-line ADVISOR RESPONSE receipt. This redacted failure boundary never publishes rejected content. One command launches at most one child and one attempt; no corrective retry occurs. A chain can use at most four adjacent levels, once each, under primary control. Runtime inspection must prove a distinct Codex consultation thread, the exact selected role/model/effort, read-only isolation, managed permission provenance and zero tool calls, with allowlisted `codex_exec` or `Codex Desktop` provenance. A tool call is rejected after execution; this is not preventive tool isolation and cannot undo data already processed by a prohibited tool.
 
-`models refresh`, `models add`, named presets, and synthetic canaries remain isolated
-advanced tools. They do not choose normal `--level` consultations. `set` and `reset`
-reject rather than claim to change the active tier; `restore` can restore legacy local
-state but explicitly reports that `advisor.toml` remains authoritative.
+Standard/Specialist and advisor-terra/advisor-sol/advisor-astra are supported wrapper entrypoints, all starting gpt-6-astra/low. Tier/role changes do not authorize a new level or reset the issue budget. Direct/native role invocation is unsupported; use the fixed launcher and its verified receipt. Model/catalog declarations are documentation, not live capability or entitlement proof. No model/effort fallback is permitted.
 
-Only this command uses model capacity:
+Each issue starts low. Higher calls require an accepted previous result, an adjacent escalation.next_level with nonblank reason, unresolved_difficulty and required_resolution, and the primary's confirmation that material uncertainty remains after cheap local evidence. Use --previous-result RECEIPT --authorize-escalation with --level medium|high|extra_high. Admission rechecks current parent, exact child/session, policy/transport revision, packet digest, persisted prompt/role/level and response, model/effort, isolation, tools and permission provenance before spawn. A Boolean --chain-authorized flag cannot grant admission. extra_high is logical terminal; runtime effort is xhigh. xhigh is a boundary alias, not a fifth budget. next_level=null stops immediately; return the best result and uncertainty at the terminal level. Transport failures, malformed responses, timeout/cancellation, provenance/model/effort mismatch and tool use are terminal; higher effort cannot repair them.
 
-```sh
-sh scripts/advisor-config.sh models test MODEL --effort EFFORT --authorize-usage --parent-thread THREAD_ID
-```
+Phase A has no durable checkpoint ledger, crash-resume/reconcile, cross-session replay prevention or concurrent duplicate admission. The primary tracks level usage within the current session. A receipt is navigation evidence, not a consumed token; phase B will implement durable at-most-once admission, tombstones/retention, resume and replay protection only after separate approval. This limitation does not weaken one-attempt transport, adjacent transition checks, or ownership.
 
-`--authorize-usage` is explicit consent for the fixed content-free synthetic canary.
-It does not trigger a consultation, and a failed probe remains safe-unavailable.
-The catalog, an account's model list, and a saved selection are not consent. Success
-records the actual local CLI version (baseline `0.153.2`) as provenance plus the
-transport contract, but leaves the active Astra policy unchanged. CLI updates do not
-stale the receipt; only its exact model, effort, or transport contract can do so.
-Local tests mock the synthetic canary path. Historical catalog and canary records are
-diagnostic-only and never establish active routing or entitlement.
+## Migration and diagnostics
 
-## Local state and privacy
+Two-tier TOML [standard]/[specialist] is rejected with migration guidance; [advisor] is the only active policy. Old owner-only settings under Codex home remain preserved as diagnostic records. Valid deadline/journal preferences can be retained without promoting their saved model pair to active selection. set/reset reject, model/effort mutations and presets outside policy reject; compatibility canaries are explicit-authorized, low-only Astra and cannot authorize escalation. No global model selection is changed.
 
-Legacy settings, catalog, canary receipts, and the optional journal live under the
-Codex home directory, outside the plugin cache. They do not override the live file.
+Catalog presence is documentation, not an entitlement or live proof. codex-cli 0.153.2 is historical tested provenance, not a runtime eligibility pin. Unsupported Astra/effort returns safe-unavailable; no fallback model, effort or PATH source is selected. Discovery/doctor do not trigger a consultation. The command `models test MODEL --effort EFFORT --authorize-usage --parent-thread THREAD_ID` requires explicit usage authorization and, in A, MODEL=gpt-6-astra and EFFORT=low. No inference was run during integration.
 
-The content-free usage journal is off by default. `journal enable`, `journal status`,
-`journal disable`, and `journal clear` control it. A later journal write prunes records older than 30 days and enforces the bounded count. There is no background deletion service. The journal contains operational metadata and aggregate usage counters, not
-decision packets or response content; unavailable counters remain null and aggregate
-coverage can be partial.
+The optional content-free usage journal prunes records older than 30 days on a subsequent write, with no background deletion service. History retains old transport contract values.
 
-## Published privacy disclosure
+The fixed launcher retains --ignore-user-config, --ignore-rules, --sandbox read-only and an isolated workdir. Python 3.11+ runtime preflight precedes helper import/provider launch; Vulture's Python 3.14 is a separate verification toolchain. Deadline, output/packet/queue bounds and child process supervision remain enabled. Startup ownership/cancel-request guards establish ownership before cleanup; an unconditional exit trap removes only the owned mode-0700 consultation directory under Codex home. Preexisting paths and unrelated processes are preserved. Uncatchable termination can leave state; do not infer that no child spawned and do not retry it.
 
-> Codex Advisor stores local configuration and model-catalog evidence under the Codex
-> home directory. Its optional content-free usage journal is disabled by default; when
-> enabled, it records bounded operational metadata and aggregate usage counters, prunes
-> records during later journal writes after 30 days, and can be disabled or cleared by
-> the user. Advisor uses configurable OpenAI models in the local Codex runtime and
-> does not operate a Zero Delta relay.
+Transport resolution is shared by launch, discovery, doctor, version probes, canary and inspectors: valid ADVISOR_CODEX_BIN, then a valid private installed WSL bridge, then PATH. Invalid explicit overrides fail without fallback. Binary/source/sessions_directory are kept together. The bridge retains checksum, owner/mode and symlink checks, bounded preflight and path conversion. Do not reinstall a bridge or modify Windows/WSL configuration to repair a test.
 
-The 1.4.4 deployment record says the then-live privacy page byte-matched its repository
-candidate. This 1.4.5 candidate updates that copy for the same local configuration/catalog
-state, content-free journal, and the Astra low-first policy; it is not yet deployed.
+Envelope schema_version=3 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.5 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v3 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
+
+The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its A writer emits contract 1.5 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
+
+The 1.4.4 deployment record is historical. This candidate is not yet deployed or installed; live runtime and installed bridge end-to-end remain UNVERIFIED.

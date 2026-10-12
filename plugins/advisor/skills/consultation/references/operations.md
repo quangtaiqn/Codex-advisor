@@ -1,244 +1,51 @@
-# Consultation operations
+# Phase-A operations
 
-## Active routing contract
+Resolve the absolute installed plugin root from the loaded skills/consultation/SKILL.md (two directories above). Every helper must be a regular, nonsymlinked file. For real use, invoke only that fixed installed-plugin root with sandbox_permissions: require_escalated and a narrow justification for one read-only child. Nested Codex app-server initialization needs this boundary; elevation applies only to the fixed launcher. Never elevate a workspace-resolved repository-relative script or use a workspace-writable packet file. These rules do not install this repository candidate.
 
-The packaged plugin preserves its existing local Codex transport, inspectors,
-launcher, private transport directory, cancellation/deadline handling, usage
-journal, installer, and marketplace boundaries. Only active advisor routing is
-changed: approved-plan checkpoint preflight starts `gpt-6-astra` at `low`, then
-permits only `medium`, `high`, and `extra_high` (`xhigh`) after an explicit
-adjacent escalation request. No Terra/Sol active selection, raw model/effort
-override, cloud backend, `mcp.json`, database, or API billing path is added.
+Prepare repository or web research and source references before consultation. Resolve source/sessions with advisor_transport.py --runtime and pass that same sessions directory to inspect-parent-runtime.sh; use CODEX_THREAD_ID, never CODEX_SESSION_ID. If parent evidence is unavailable, stop. Non-Codex surfaces use route: unavailable.
 
-Use targeted evidence from a cheap local check first. If it leaves unresolved a
-material compatibility or concurrency question or a competing diagnosis, consult only
-when the wrong decision has material impact; other decisions use the same
-uncertainty-and-impact gate. Skip routine/factual/status/mechanical
-work, settled decisions, implementation already started, completion/reassurance,
-explicit no-delegation, and borderline cases. One checkpoint has one opportunity;
-each effort is single-pass, there is no same-effort schema retry, no parallel or
-recursive advisor, and no automatic completion consultation.
-
-The active transport accepts `--level` plus an opaque `--checkpoint-key`. Legacy
-`--tier`/`--role` names, if retained, are migration aliases into the same
-Astra-low-first chain and never select old models. Chain state reserves the level
-before launch and persists packet/policy digests atomically under an owner-only
-chain root. Normally this is `$CODEX_HOME/advisor/chains` (or
-`$HOME/.codex/advisor/chains` when `CODEX_HOME` is unset). In WSL, when
-`CODEX_HOME` resolves below a Windows-mounted `/mnt/<drive>/...` path, the chain
-root moves to `$HOME/.codex-advisor/chains` so DrvFS permission reporting cannot
-weaken the owner-only check. If a ledger already exists at the Windows-mounted
-root, the runtime fails closed and requires an explicit migration; it never
-silently copies, merges, or deletes ledger state. Record the resolved root for
-recovery and preserve it when restoring the plugin cache. After restart, resume
-from the recorded next action. If a reserved level has no terminal evidence, the
-reconciliation command marks it uncertain and blocks; it never replays that
-  level. Only a completed level with verified adjacent escalation can continue
-  the chain. The primary agent continues a valid adjacent escalation automatically
-  in the same turn: it confirms `advisor_chain.py inspect` reports the current level
-  completed and `next_action: reserve:<next-level>`, then invokes the next level once
-  with the same checkpoint key and `--chain-authorized`. It repeats only for validated
-  adjacent requests, stopping on `next_level: null`, any unavailable/uncertain/failed
-  state, inconsistent evidence, or after `extra_high`. The shell wrapper still starts
-  one child per invocation; it does not implement the escalation loop. Usage journal
-  clear/prune never deletes the safety ledger.
-
-### CP4-C synthetic qualification
-
-Run this mode only for an explicitly user-approved qualification campaign; it is
-never a normal Advisor route. Set
-`ADVISOR_ENABLE_SYNTHETIC_QUALIFICATION=1` and pass
-`--qualification-scenario full-adjacent-escalation-v1` with one UUIDv4
-`--qualification-run-id`. Reuse that run ID and the same opaque checkpoint key
-for each adjacent level. The wrapper uses the standard Astra resolver, runtime
-inspector, response validator, and chain implementation, while selecting the
-separate private root `$HOME/.codex-advisor/qualification-<run-id>`. Its accepted
-envelope carries `synthetic_scenario: true`; retain that marker and the scenario
-and run IDs with the receipt.
-
-The primary continues only after validating the actual model response and
-runtime evidence, then inspecting the same qualification ledger for the exact
-adjacent `next_action`. Pass `--chain-authorized` only for that verified next
-level. Stop on `next_level: null`, invalid evidence or ledger state, and after
-`extra_high`; do not retry. The scenario asks each live child to exercise the
-next adjacent level, but it cannot force the child response or edit a receipt or
-ledger. A passing C proves only runtime-backed orchestration for this synthetic
-qualification scenario. It does not prove that an advisor would request all
-three escalations for a real technical issue.
-
-Advisor provides pre-decision advice only. It does not implement, route
-implementation, perform final review, or replace root authority. The root performs
-any repository or web research before consultation and sends enough relevant evidence
-and source references in the five-section packet for a decision. If the evidence is
-not enough, the advisor may identify only a concrete research-first next step, missing
-evidence, research questions, or bounded brainstorming areas. The advisor uses zero
-tools: it does not inspect files, fetch the web, or conduct independent research.
-
-The root may assign bounded evidence gathering to separate research workers before assembling the decision packet; the consulted advisor still uses zero tools and never delegates.
-
-## Install and verify the companion roles
-
-## Persistent Windows-to-WSL transport
-
-This adapter supports a Windows-hosted Codex CLI or Codex Desktop parent that runs
-the installed plugin through WSL Ubuntu and launches the Windows Codex CLI from
-there. From the Windows parent, invoke the installed plugin's
-`scripts/install-wsl-transport.sh` once inside that distribution. The installer
-locates the current Windows Node/Codex package and sessions directory, then stores
-an owner-only adapter plus a hash-checked configuration in the WSL home at
-`~/.codex-advisor/transport`. Run it again after installing a plugin candidate;
-the installer preserves configuration backups and does not touch the checkpoint
-ledger. It never reads or copies authentication material.
-
-Use the installed plugin path returned by `codex plugin list --json`; convert the
-Windows path to its WSL mount path before invoking the script. For example, the
-Windows PowerShell launcher has this form:
-
-```powershell
-wsl.exe --distribution Ubuntu --exec /bin/sh /mnt/c/Users/<user>/.codex/plugins/cache/advisor/advisor/<version>/scripts/install-wsl-transport.sh
-```
-
-After installation, run `advisor-config.sh --json doctor` through the same WSL
-distribution. Doctor must report `source: installed-wsl-bridge`, the adapter path,
-and the configured Windows sessions directory. Run transport commands from the
-installed plugin root. If a Windows-hosted parent launches WSL, pass its actual
-`CODEX_THREAD_ID` explicitly as an `env` argument to `wsl.exe`; do not depend on
-`WSLENV` or assume the variable is inherited. Keep packet text on UTF-8 stdin. A
-missing parent ID, invalid bridge hash, inaccessible sessions directory, or failed
-CLI preflight is unavailable and must stop before checkpoint reservation.
-
-## Live configuration and advanced tools
-
-The installed `advisor.toml` is the authoritative fixed Astra policy for active
-calls. It contains one model and the ordered level/effort ladder. The next
-consultation reads it and freezes its policy plus SHA-256 source revision. No
-catalog, discovery, canary, preset, or legacy saved selection may change active
-routing. Plugin updates or reinstall can replace the bundled policy.
-
-The helper's settings, prior-settings recovery, catalog evidence, canary receipts, and
-optional journal are advanced legacy state under Codex home, outside the plugin cache.
-`scripts/advisor-config.sh models refresh` is an explicit, bounded read of the Codex
-app-server using the existing Codex provider/auth context. It uses
-`--ignore-user-config --ignore-rules`, sends only initialize/initialized/model-list
-JSON-RPC messages, includes hidden models, and preserves existing catalog state on
-offline, protocol, or authorization failure. It never copies credentials, writes user
-Codex configuration, enables tools, or runs inference. New launcher calls use
-`--level low|medium|high|extra_high`; raw model/effort overrides are not accepted.
-Live routing starts Astra/low and maps extra_high to xhigh without fallback.
-That permission to attempt is not compatibility proof: each
-real child remains subject to the existing exact runtime identity, effort, read-only,
-zero-tool, and schema checks. Legacy role names are aliases only and never select
-Terra or Sol.
-If the installed CLI does not expose both isolation flags for `app-server`, refresh
-returns unavailable without launching it or changing the catalog. Tested CLI
-provenance `0.153.2` is currently in that safe-unavailable state; discovery never
-blocks built-in defaults. Use `models add MODEL` for a future manual selector, but
-catalog presence, including optional Astra, is neither entitlement nor compatibility.
-`models test MODEL
---effort EFFORT --authorize-usage` is the only inference-based configuration command.
-It runs a fixed content-free packet through this same transport, permits at most one
-response-only canary, records the exact local CLI version as provenance on success, and
-never changes the active Astra policy. CLI updates alone do not stale evidence. It requires
-explicit usage authorization; configuration metadata or a saved selection is not
-consent. `set` and `reset` reject as legacy-only rather than reporting an active tier
-change; `restore` reports that it only restores legacy state.
-`journal status|enable|disable|clear` manages a content-free journal disabled by
-default. Pruning older-than-30-day records happens during a later journal write, not
-through a background deletion service.
-
-From the installed plugin root:
+New issue:
 
 ```sh
-sh scripts/install-agents.sh
-sh scripts/install-agents.sh --check
-```
-
-The installer adds the three compatibility filenames `advisor-terra.toml`,
-`advisor-sol.toml`, and `advisor-astra.toml`. All three are byte-exactly installed
-and checked, but each active launch normalizes to the same Astra/low policy; the old
-names are never independent model routes or fallbacks. During an attended upgrade it
-recoverably retires byte-exact known historical Luna, Terra, and Sol-reviewer files
-to `<role>.toml.retired-v0.6.0`, the old Sol consultation role to
-`sol-advisor.toml.retired-v1.0.0`, and the obsolete neutral role to
-`advisor.toml.retired-v1.0.1`. It preflights every path before mutation, is
-idempotent, refuses symlinks/nonregular files/modified content/collisions/dual paths,
-and never edits Codex configuration. An exact Advisor 1.1.0 upgrade recoverably
-retires the prior model-pinned roles to `advisor-terra.toml.retired-v1.1.0` and
-`advisor-sol.toml.retired-v1.1.0`, then installs the risk-described 1.3.0 roles at
-their original active paths. Later exact 1.3.0 generations retire separately to
-`.retired-v1.3.0` and `.retired-v1.3.0-zero-tool`, preserving both predecessor
-files without collision. Exact retired-only interrupted states resume safely;
-modified, dual, or colliding states refuse all mutation.
-
-## Root and advisor records
-
-For a consult candidate, before the first implementation write and before the
-decision record, run:
-
-```sh
-sh <absolute-installed-plugin-root>/scripts/inspect-parent-runtime.sh
-```
-
-This preflight identifies the parent only with `CODEX_THREAD_ID`; it never falls back
-to `CODEX_SESSION_ID`. It resolves one regular, nonsymlinked rollout in the
-caller-supplied/default sessions root and accepts an unambiguous recognized sandbox
-and permission profile. The parent may be `workspace-write`; the separate consultation
-transport owns read-only isolation. Missing, malformed, duplicate, or conflicting
-evidence is typed unavailable.
-
-Then emit:
-
-```text
-ADVISOR DECISION
-route: consult | skip | unavailable
-reason: <one task-specific sentence>
-question: <bounded decision question, or none>
-```
-
-An identified parent permits `consult`, including a normal `workspace-write` root.
-An unavailable preflight emits `route: unavailable`, with no `ADVISOR CALL`, no
-consultation process, and no block on root-owned work. The ordinary `skip` route
-remains unchanged.
-
-For a consult, start `--level low` with `gpt-6-astra`. Escalate only when the
-verified response requests the immediate next level, in order `medium`, `high`,
-then `extra_high` (`xhigh`). Legacy `--tier`/`--role` names, if accepted, are
-compatibility aliases into the same low-first chain and cannot select Terra/Sol,
-presets, or arbitrary model/effort values. The parent model is irrelevant.
-
-Never call `codex exec` directly or pass a model/effort override. Invoke the fixed
-installed-plugin wrapper through the shell tool's
-`sandbox_permissions: require_escalated` boundary with a narrow justification; do
-not first attempt it inside the parent sandbox, where nested Codex app-server
-initialization is blocked. This elevation launches only the fixed wrapper. The child
-remains forced to `--sandbox read-only` and must pass runtime inspection. The wrapper
-resolves the live model and effort once, runs a bounded `--version` preflight before
-reserving the checkpoint, forces a read-only sandbox, and creates a distinct persisted
-consultation thread. On WSL, the installed private bridge is resolved from its
-hash-checked configuration; the same verified executable is used for the child
-launch, and its Windows sessions path is passed to both runtime inspectors. A failed
-preflight stops before checkpoint reservation:
-
-```sh
-/bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --level low --checkpoint-key <opaque-key> <<'ADVISOR_PACKET'
+/bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --level low <<'ADVISOR_PACKET'
 DECISION
-<the complete five-section packet continues here>
+<one unresolved material question>
+CONTEXT
+<bounded evidence and source references>
+OPTIONS
+<competing choices>
+BOUNDARIES
+<ownership, safety and acceptance constraints>
+REQUEST
+<the difficulty to resolve>
 ADVISOR_PACKET
-# Resume with the same checkpoint key only after a verified adjacent escalation.
+# Supported initial aliases: --tier standard, --tier specialist,
+# --role advisor-terra, --role advisor-sol, --role advisor-astra.
 ```
 
-For a Windows-hosted parent, use `wsl.exe --distribution Ubuntu --exec env
-"CODEX_THREAD_ID=<verified-parent-id>" /bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh ...`.
-Supply the packet through UTF-8 stdin. The `CODEX_THREAD_ID` value is the parent
-thread ID inspected in the Windows-hosted Codex runtime; it is not the child ID or a
-session ID. A native WSL parent calls the wrapper directly with its own environment.
+After an accepted low response requests medium, the primary verifies the material need, persists the actual envelope in a private receipt file outside the workspace, and invokes the same original packet with `--level medium --previous-result /absolute/private/low.json --authorize-escalation`. Repeat only an adjacent requested level. The receipt supplement is only the verified previous response and unresolved question; the original packet digest is unchanged. Changing a role or tier cannot authorize a skip/repeat/reset. --chain-authorized and checkpoint/qualification flags are rejected.
 
-### Deferred shell-tool result handoff
+Use a single-quoted heredoc after proving its delimiter is absent from the packet. Never use `< packet.txt`, an unquoted heredoc, `eval` or shell-interpolated packet content for elevated inference. Do not stage the packet in a workspace-writable file. Zero-tool advisors cannot fetch missing evidence or perform follow-up work; accepting a research-first plan means accepting that plan, not a technical choice the advisor did not make.
 
-The shell tool can yield a process handle before the wrapper exits. A nonempty `session_id`
-from `exec_command` is nonterminal for every Advisor role and tier;
-drain that exact session while accumulating tool output, then parse the preserved
-final output. The caller-side pattern is:
+The root owns architecture, implementation routing, verification, and acceptance. Advisors are read-only, non-authoritative, use zero tools, and never delegate, implement, deploy, or perform final review. The root performs any repository or web research and includes relevant evidence and source references in a bounded decision packet. When evidence is insufficient, the advisor may recommend only a concrete research-first next step and list missing evidence under FOLLOW-UP AREAS, outside this consultation. An unavailable result cannot be rescued by a higher level or a fallback model.
+
+The sole supported wrapper model-output format is one JSON object. Wrapper-owned semantic validation checks exact keys, types, nonblank strings/checks, duplicate fields and structured escalation before rendering the canonical eight-line ADVISOR RESPONSE receipt. This redacted failure boundary never publishes rejected content. One command launches at most one child and one attempt; no corrective retry occurs. A chain can use at most four adjacent levels, once each, under primary control. Runtime inspection must prove a distinct Codex consultation thread, the exact selected role/model/effort, read-only isolation, managed permission provenance and zero tool calls, with allowlisted `codex_exec` or `Codex Desktop` provenance. A tool call is rejected after execution; this is not preventive tool isolation and cannot undo data already processed by a prohibited tool.
+
+Standard/Specialist and advisor-terra/advisor-sol/advisor-astra are supported wrapper entrypoints, all starting gpt-6-astra/low. Tier/role changes do not authorize a new level or reset the issue budget. Direct/native role invocation is unsupported; use the fixed launcher and its verified receipt. Model/catalog declarations are documentation, not live capability or entitlement proof. No model/effort fallback is permitted.
+
+Each issue starts low. Higher calls require an accepted previous result, an adjacent escalation.next_level with nonblank reason, unresolved_difficulty and required_resolution, and the primary's confirmation that material uncertainty remains after cheap local evidence. Use --previous-result RECEIPT --authorize-escalation with --level medium|high|extra_high. Admission rechecks current parent, exact child/session, policy/transport revision, packet digest, persisted prompt/role/level and response, model/effort, isolation, tools and permission provenance before spawn. A Boolean --chain-authorized flag cannot grant admission. extra_high is logical terminal; runtime effort is xhigh. xhigh is a boundary alias, not a fifth budget. next_level=null stops immediately; return the best result and uncertainty at the terminal level. Transport failures, malformed responses, timeout/cancellation, provenance/model/effort mismatch and tool use are terminal; higher effort cannot repair them.
+
+Phase A has no durable checkpoint ledger, crash-resume/reconcile, cross-session replay prevention or concurrent duplicate admission. The primary tracks level usage within the current session. A receipt is navigation evidence, not a consumed token; phase B will implement durable at-most-once admission, tombstones/retention, resume and replay protection only after separate approval. This limitation does not weaken one-attempt transport, adjacent transition checks, or ownership.
+
+The fixed launcher retains --ignore-user-config, --ignore-rules, --sandbox read-only and an isolated workdir. Python 3.11+ runtime preflight precedes helper import/provider launch; Vulture's Python 3.14 is a separate verification toolchain. Deadline, output/packet/queue bounds and child process supervision remain enabled. Startup ownership/cancel-request guards establish ownership before cleanup; an unconditional exit trap removes only the owned mode-0700 consultation directory under Codex home. Preexisting paths and unrelated processes are preserved. Uncatchable termination can leave state; do not infer that no child spawned and do not retry it.
+
+Transport resolution is shared by launch, discovery, doctor, version probes, canary and inspectors: valid ADVISOR_CODEX_BIN, then a valid private installed WSL bridge, then PATH. Invalid explicit overrides fail without fallback. Binary/source/sessions_directory are kept together. The bridge retains checksum, owner/mode and symlink checks, bounded preflight and path conversion. Do not reinstall a bridge or modify Windows/WSL configuration to repair a test.
+
+Envelope schema_version=3 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.5 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v3 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
+
+The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its A writer emits contract 1.5 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
+
+## Drain the shell handoff
 
 ```javascript
 let process = await tools.exec_command({cmd: transportCommand});
@@ -268,220 +75,47 @@ const verifiedEnvelope = candidates[0];
 text(JSON.stringify(verifiedEnvelope));
 ```
 
-Never treat the initial yielded result as terminal: it is nonterminal progress, not
-the verified envelope, and must not be parsed. An outer `functions.wait` result or heartbeat is also nonterminal progress;
-it must not produce an `ADVISOR RESULT`,
-unavailable classification, or receipt. Drain and validate the exact process inside
-the owning `functions.exec`, preserving every tool-output chunk in `combinedOutput`,
-then extract exactly one parseable `schema_version: 3` JSON envelope. The shell tool
-may merge stderr progress into `output`, so zero or multiple schema-v3 candidates
-is a fail-closed handoff error. Only after validation, emit
-`text(JSON.stringify(verifiedEnvelope))` so the enclosing call delivers the verified
-envelope; nested shell-tool output is not itself a result. A missing terminal exit
-status or a still-present `session_id` is a handoff failure, not a model failure and
-not evidence that the consultation returned no response.
+The initial yielded result is nonterminal progress; an outer functions.wait update is nonterminal too. Drain the same session_id with write_stdin, retain all chunks, then parse and deliver exactly one schema-v3 envelope. No receipt is accepted before terminal exit.
 
-Resolve `<absolute-installed-plugin-root>` from the loaded `SKILL.md` path, two
-directories above its containing directory. Require regular, nonsymlinked scripts
-beneath that root. Never elevate a repository-relative or workspace-resolved
-`plugins/advisor` script.
-Use only the shown single-quoted heredoc after confirming its delimiter is absent from
-the packet. Never use `< packet.txt`, an unquoted heredoc, `eval`, or shell-interpolated
-packet text at the elevated boundary, and never stage the packet in a
-workspace-writable file.
-
-The wrapper uses existing Codex authentication in place; it does not read, copy,
-print, or relink authentication material. Send the five-section
-DECISION/CONTEXT/OPTIONS/BOUNDARIES/REQUEST packet from the skill, with only
-root-gathered relevant evidence and source references. Require exactly one JSON
-object conforming to the installed `advisor-response.schema.json`, with no prose or
-code fences. This schema is the sole supported wrapper model-output format. Direct/native role invocation is unsupported and is not schema-validated. It requires
-six nonblank string fields (`recommendation`, `why`, `strongest_objection`,
-`change_my_mind`, `risks`, `follow_up_areas`) and a nonempty array of nonblank string
-`acceptance_checks` values plus a typed `escalation` object. The object contains
-`next_level` (`null`, `medium`, `high`, or `extra_high`) and the strings
-`reason`, `unresolved_difficulty`, and `required_resolution`. A non-null next
-level must be the immediate next level and all three explanation strings must be
-nonblank.
+## Visible lifecycle
 
 ```text
-ADVISOR RESPONSE
-RECOMMENDATION: <recommendation>
-WHY: <why>
-STRONGEST OBJECTION: <strongest_objection>
-CHANGE MY MIND: <change_my_mind>
-ACCEPTANCE CHECKS: <acceptance checks joined by ; >
-RISKS: <risks>
-FOLLOW-UP AREAS: <follow_up_areas>
-```
+ADVISOR DECISION
+route: consult | skip | unavailable
+reason: <material uncertainty or skip reason>
 
-Immediately after every launched child, before response classification or machine
-output, the wrapper runs `inspect-agent-runtime.sh` for that thread, expected
-model/effort, and parent thread. This mandatory inspection verifies allowlisted
-`codex_exec` or `Codex Desktop` provenance, a thread distinct from the parent,
-the exact frozen effort, read-only isolation, and
-zero tool use; it is not a metadata fallback. Wrapper-owned semantic validation
-accepts only schema-valid, nonblank fields and deterministically renders the exact
-canonical eight-line receipt above. A runtime-valid response-validation failure emits
-only a redacted failure `class` and `field`, then stops. A consultation launches at most one child
-per reserved level; there is no same-level replacement, corrective retry, or
-retry prompt.
-Packet, launcher, event, identity, same-session, runtime, wrong-model,
-wrong-effort, non-read-only, normalization, or tool-use failure is terminal and never
-retries. A second response-validation failure is unavailable. Rejected content is
-never emitted, accepted, or merged. Every attempt
-artifact is confined to one private mode-0700 consultation directory beneath the
-private transport root; an unconditional exit trap removes it after every wrapper
-exit. If packet evidence is
-insufficient, the advisor names the specific missing evidence or research questions
-under `FOLLOW-UP AREAS` instead of researching. A valid processed response contains
-either a recommendation grounded in the packet or a concrete `FOLLOW-UP AREAS`
-entry. Only then does the root verify the response's cited source references and
-record `accept`, `modify`, or `reject`. For a research-first response, the concise
-research-first plan is the recommendation and `accept` means accepting that plan,
-not a technical choice the advisor did not make. The advisor is never authoritative.
-
-After a valid, runtime-inspected result, any research or brainstorming follow-up remains
-primary-agent work outside this consultation. An unavailable result cannot be rescued by
-a replacement advisor or same-checkpoint follow-up, and the advisor may not spawn or
-conduct that work.
-
-Resolve the active level with the installed helper. Immediately before invoking the
-consultation transport, the root emits the actual resolved metadata:
-
-```text
 ADVISOR CALL
-level: low | medium | high | extra_high
-model: <resolved model selector>
-effort: <resolved effort>
-reason: <one task-specific sentence>
-question: <bounded decision question>
 status: running
-```
+role: <resolved supported role>
+level: <admitted level>
+model: gpt-6-astra
+effort: <resolved runtime effort>
+isolation: read-only
 
-After runtime evidence and advice processing, it always emits:
-
-```text
 ADVISOR RESULT
 status: completed | unavailable
-level: low | medium | high | extra_high
-model: <verified resolved model selector>
-effort: <verified resolved effort>
-isolation: read-only
-recommendation: <concise recommendation, or unavailable>
+recommendation: <accepted recommendation or unavailable>
 decision: accept | modify | reject | blocked
-reason: <one sentence>
 ```
 
-Only mandatory post-response runtime inspection plus a processed response can produce
-`completed`. Missing, conflicting, non-read-only, tool-use, or required-advice
-evidence produces `status: unavailable`, `recommendation: unavailable`, and
-`decision: blocked`; the consult route remains fail-closed. These main-chat receipts
-summarize verified evidence but are not runtime proof. The distinct Codex consultation
-thread remains the inspectable detailed record. A skip emits only `ADVISOR DECISION`,
-with no call/result receipt and no transport invocation.
+For skip/unavailable emit only ADVISOR DECISION unless a child was actually launched. A distinct Codex consultation thread remains the inspectable detailed record. Do not route completion or final review to an advisor. Recovery after an unknown/timeout/cancel outcome is a safe stop, not a retry. Durable checkpoint resume/reconcile and cross-session replay protection are phase B.
 
-## Runtime evidence
+Installer retirement paths such as `.retired-v1.3.0-zero-tool` preserve known historical roles; unknown content, symlinks and collision states fail before mutation. User settings, bridge configuration, installed plugin and session model are not altered by this repository integration.
 
-Persisted `codex exec` runtime metadata is primary. The transport must establish one
-fresh thread, the exact frozen model and effort resolved for the selected level, a read-only sandbox, allowlisted
-`codex_exec` or `Codex Desktop` provenance, and a thread distinct from the parent.
-The wrapper runs:
+## Attended evaluator and evidence limits
 
-```sh
-sh <absolute-installed-plugin-root>/scripts/inspect-agent-runtime.sh --expected-role advisor-astra --expected-model <selected-model> --expected-effort <selected-effort> --expected-parent <parent-thread-id> <thread-id>
-```
+The optional evaluate-triggers.sh evaluator compares the multi_agent_v2 disabled/enabled paths with isolated projects and the same fixed Astra/low role pairs. Its ephemeral root has no persisted parent rollout, so preflight returns route: unavailable with no `ADVISOR CALL` or child spawn. That unavailable result must not count as successful consultation qualification. Deterministic parsing and persisted fixtures test role/model/effort, lifecycle, redaction and accounting; they are fixture proof, not live reasoning proof.
 
-The inspector emits only thread, parent, role, transport, model, effort,
-sandbox-policy, and permission-profile fields, while rejecting any tool-use event. It must confirm a
-read-only runtime policy; a role TOML requesting read-only is not proof of actual
-isolation. Missing, conflicting, unexpected, non-read-only, or tool-use evidence is
-unavailable, never approval. No substitute advisor role or replacement consultation
-is allowed; any root-routed follow-up remains outside this consultation. Progress is
-stderr-only and successful stdout is one verified JSON object containing the allowlisted
-runtime evidence and the canonical eight-line receipt rendered from the accepted
-schema object. Every launched child is inspected before response classification.
-Response-validation failure is terminal after the runtime inspection and exposes
-only its redacted failure class and field; terminal transport, identity, isolation,
-provenance, runtime, or tool failures never retry. Rejected raw content remains
-private to the consultation directory and is never emitted or copied into another
-prompt.
+Live --run use requires separate user authorization, subscription-only confirmation and disabled overage. Do not handle auth files, override parent credentials, enable paid overage or modify the installed plugin. The pooled evaluation budget is 40 root sessions across feature paths; only eligible boundary mismatches have bounded reruns, which do not authorize a consultation retry. Progress goes to stderr; result JSON is file-only. Scoped before/after digests cover config.toml, agents, skills, plugins and marketplace metadata, excluding auth/session/cache data. Snapshot traversal reports progress before reading and every 100 files. An unavailable result preserves paired nonmutation evidence. This Phase-A implementation task has no authorization to run attended evaluation or inference.
 
-## Local advisor audit
-
-Use the read-only local audit to inspect aggregate consultation drift without exposing
-session content. It writes progress to stderr before enumeration and parsing, then
-emits one redacted JSON report on stdout. The report never includes session names,
-paths, identifiers, receipt prose, prompts, responses, or cost estimates.
-
-```sh
-sh plugins/advisor/scripts/advisor-audit.sh --window-hours 24
-```
-
-`--since RFC3339` and `--until RFC3339` select an explicit half-open time window;
-`--sessions-dir DIR` is available for isolated synthetic tests. The audit reads only
-allowlisted runtime metadata, fixed receipt enums, tool-event kinds, timestamps, and
-usage counters. Missing sandbox, tool, token, or duration evidence is JSON `null`
-with an `unavailable` availability value, never an inferred value. It reports receipt
-attempts and allowlisted `ADVISOR DECISION` routes (`consult`, `skip`, and
-`unavailable`) in an exact top-level `decisions` object; decision availability is a
-separate field. Schema v2 identifies exact current `advisor-terra`, `advisor-sol`,
-and `advisor-astra` child sessions from full-file `session_meta` before applying the
-half-open window to their activity. It reports those child sessions separately from deduplicated parent
-`spawn_agent` completion evidence; parent completion counts are JSON `null` with
-explicit `unavailable` availability unless a completed role-bearing spawn event
-exists. Current parent `function_call` spawn requests and role-free
-`SubAgentActivity` lifecycle events (`started`, `interacted`, `completed`, and
-`interrupted`) are separate corroborating counts. A request never establishes a
-selected role or completion, and activity is counted only by correlation to an exact
-current child ID. Legacy role labels, evidenced dispositions, sandbox counts,
-advisor tool-call counts, duration aggregates, and token totals remain
-aggregate-only. Astra level/model evidence is included in child-session and
-parent-completion aggregates without reintroducing a legacy tier selector.
-It never changes sessions or Codex configuration.
-
-## Trigger evaluation
-
-There is no automatic completion consultation. The completion, final diff review,
-and release verification remain owned by the primary agent and the separate
-`final-review` workflow; a new advisor chain requires a materially new checkpoint
-and bounded uncertainty.
-
-Static verification is non-networked:
-
-```sh
-sh plugins/advisor/scripts/verify.sh --static
-```
-
-Live evaluation is a separate attended step. `evaluate-triggers.sh --run --result
-PATH` requires subscription-only routing and disabled overage. The parent process keeps
-the live authenticated Codex home and runs with ignored user configuration/rules,
-ephemeral state, and a read-only sandbox. Each feature state gets an isolated temporary
-project and child runtime: the project links the consultation skill and repository-local
-plugin, while the companion installer places and checks all three exact roles in the child
-runtime. The evaluator does not copy or link authentication and does not add a plugin
-or marketplace during live evaluation.
-
-The two `multi_agent_v2` schemas remain configured, but ephemeral feature-state coverage is not
-freshness evidence. A route marker classifies `consult`, `skip`, or `unavailable`;
-claimed advisor metadata, an empty wait, or consultation without a completed
-`spawn_agent` event is typed `runtime_evidence_unavailable` and blocks the consult
-route. Because the evaluator uses `--ephemeral`, its first trial has no persisted
-parent rollout and expects the preflight's `route: unavailable`, with no `ADVISOR
-CALL` or child spawn; it writes a typed unavailable artifact instead of continuing the
-matrix. Deterministic persisted fixtures in `verify.sh` separately prove the read-only
-consult path. Progress goes to stderr; the result is redacted JSON
-without prompts, raw events, or thread identifiers. Each run records paired
-before/after digests for contract-owned live state (`config.toml`, `agents/`,
-`skills/`, and `plugins/`) and marketplace state, including unavailable exits.
-Auth, session, log, and cache files are excluded from the read set. Validate with:
-
-```sh
-sh plugins/advisor/scripts/evaluate-triggers.sh --verify-result --result PATH
-```
-
-Use `--allow-unavailable` only to accept a typed unavailable artifact as evidence of
-an unavailable evaluation, never as a passing consultation result.
-# Usage and local support data
-
-The consultation envelope records an opaque consultation ID plus per-attempt and aggregate duration/token accounting when the host provides structured counters. This preserves the canonical eight-line response and never infers spend or allowance. Local content-free usage journaling is disabled by default and is controlled with `advisor-config.sh journal enable`, `disable`, `status`, and `clear`; records preserve the Astra policy level and omit prompts, answers, paths, child/session IDs, authentication material, and raw errors. Journal failure is surfaced as a sanitized warning without retrying a model or failing otherwise accepted advice.
+Acceptance proof (A): successful launcher envelopes include `acceptance_proof`
+(`hmac-sha256-v1`) covering the complete envelope. The launcher creates a random,
+owner-only key at `$CODEX_HOME/.tmp/advisor-acceptance/key` only after acceptance;
+admission requires the existing safe key and a matching proof, plus current
+parent/source/policy/packet and persisted runtime/response checks. Missing,
+changed, linked or broadly readable keys fail closed; they are never recreated
+by admission. Do not print, package or share that key. Repository helpers and the
+Codex-home filesystem owner are trusted; this does not defend against that owner
+rewriting the key/code/sessions. The key stores no packet, response, receipt list,
+quota, reservation, consumed token or resume state. A valid receipt can still be
+replayed within the permitted session; durable prevention remains phase B.

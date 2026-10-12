@@ -10,6 +10,7 @@ import json
 import os
 import re
 import stat
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -200,6 +201,32 @@ def load_transport_config(path: Path | None = None) -> dict[str, Any]:
         raise TransportConfigError("configured Codex transport is unavailable") from exc
     _entrypoint_path(entrypoint)
     return value
+
+
+def resolve_runtime(*, sessions_directory: str | None = None) -> dict[str, str]:
+    explicit = os.environ.get("ADVISOR_CODEX_BIN")
+    config_path = default_config_path() if explicit is None else None
+    if explicit is not None:
+        path = Path(explicit)
+        if not path.is_absolute() or not path.is_file() or path.is_symlink() or not os.access(path, os.X_OK):
+            raise TransportConfigError("ADVISOR_CODEX_BIN is unsafe or unavailable; no fallback")
+        executable, source = str(path), "explicit"
+        sessions = sessions_directory or os.environ.get("ADVISOR_SESSIONS_DIR") or str(Path(os.environ.get("CODEX_HOME", str(Path.home()/".codex")))/"sessions")
+    elif config_path is not None and (config_path.exists() or config_path.is_symlink() or os.environ.get("ADVISOR_TRANSPORT_CONFIG")):
+        config = load_transport_config(config_path)
+        executable, source = config["adapter_path"], "installed-wsl-bridge"
+        sessions = config["sessions_directory"]
+        if sessions_directory is not None and Path(sessions_directory) != Path(sessions):
+            raise TransportConfigError("sessions directory does not match installed transport")
+    else:
+        executable = shutil.which("codex") or ""
+        if not executable:
+            raise TransportConfigError("codex CLI is unavailable")
+        source = "PATH"
+        sessions = sessions_directory or str(Path(os.environ.get("CODEX_HOME", str(Path.home()/".codex")))/"sessions")
+    if not Path(sessions).is_absolute():
+        raise TransportConfigError("sessions directory must be absolute")
+    return {"executable": executable, "sessions_directory": sessions, "source": source}
 
 
 def resolve(field: str) -> str:
@@ -399,6 +426,11 @@ def _run_as_adapter(arguments: list[str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
+        if args and args[0] == "--runtime":
+            if len(args) > 2:
+                raise TransportConfigError("invalid runtime request")
+            print(json.dumps(resolve_runtime(sessions_directory=args[1] if len(args) == 2 else None)))
+            return 0
         if args and args[0] == "--resolve":
             if len(args) != 2:
                 raise TransportConfigError("invalid resolver request")

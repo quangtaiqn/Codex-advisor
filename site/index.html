@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
 <title>Codex Advisor — Read-only second opinions</title>
-<meta name="description" content="Codex Advisor adds read-only Astra advice for material unresolved Codex decisions with low-first verified escalation.">
-<meta name="advisor-release" content="1.4.5">
+<meta name="description" content="Codex Advisor adds read-only advice for material Codex decisions, with Astra low-first and bounded adjacent escalation.">
+<meta name="advisor-release" content="1.4.9-astra.1">
 <meta property="og:title" content="Codex Advisor">
 <meta property="og:description" content="Read-only second opinions for material Codex decisions.">
 <meta property="og:type" content="website">
@@ -28,9 +28,9 @@
 </header>
 <div class="hero">
     <div class="wrap">
-        <span class="status-pill">Open source &middot; Candidate documentation v1.4.5</span>
+        <span class="status-pill">Open source &middot; Candidate documentation v1.4.9-astra.1</span>
         <h1>Codex Advisor</h1>
-        <p class="subhead">Read-only Astra advice for material unresolved Codex decisions, starting at low effort with verified escalation. It advises; your main agent decides.</p>
+        <p class="subhead">Automatic read-only advice for material Codex decisions, with smart defaults and bounded escalation. It advises; your main agent decides.</p>
         <div class="cta-row">
             <a class="btn btn-primary" href="https://chatgpt.com/plugins/plugins_6a984f37e9c88191a2a777998f7b0521">Install from OpenAI</a>
             <a class="btn" href="https://github.com/dave-schmidt-dev/advisor">View source</a>
@@ -42,23 +42,23 @@
     <h2 id="what">What it does</h2>
     <ol class="steps">
         <li><strong>Finds the decision.</strong><span>Ordinary architecture and interfaces, or evidence-unresolved system boundaries, recovery, trust, and competing diagnoses.</span></li>
-        <li><strong>Challenges it read-only.</strong><span>The advisor gets a bounded packet, no tools, and no write access.</span></li>
+        <li><strong>Challenges it read-only.</strong><span>The advisor gets a bounded packet in a read-only sandbox and is instructed to use zero tools.</span></li>
         <li><strong>Returns the call.</strong><span>Your main agent accepts, changes, or rejects the recommendation.</span></li>
     </ol>
-    <div class="callout"><p>The consultation child is verified read-only and tool-free. Direct invocation of installed advisor profiles is unsupported.</p></div>
+    <div class="callout"><p>The consultation child runs read-only with post-execution runtime validation: the launcher inspects the recorded runtime after execution and rejects the result on any observed tool call. Direct invocation of installed advisor profiles is unsupported.</p></div>
 </section>
 <section aria-labelledby="models">
-    <h2 id="models">Choose your models</h2>
-    <p>Advisor uses the live <code>advisor.toml</code> bundled with the installed plugin. Active consultations use Astra and begin at low effort, escalating only through a verified adjacent level.</p>
+    <h2 id="models">Astra starts low</h2>
+    <p>Smart defaults use one active Astra model with bounded escalation. Standard and Specialist are supported entrypoint names. Both start low; they do not select different models.</p>
 <pre><code>[advisor]
 model = "gpt-6-astra"
 effort_ladder = ["low", "medium", "high", "xhigh"]
-
-# extra_high is the skill label for runtime xhigh.
 </code></pre>
-    <p><code>advisor-astra</code> is the active read-only role. Legacy <code>advisor-terra</code> and <code>advisor-sol</code> names are compatibility aliases only; they cannot select the historical models. Each checkpoint gets at most one pass per level, and completion/reassurance consultations are skipped. The active route remains subject to account and runtime availability. Editing the bundled <code>advisor.toml</code> is not a supported active model override; plugin updates may replace the bundled file.</p>
-    <p>Consultation is reserved for material decisions with unresolved uncertainty, such as architecture, interfaces, compatibility/concurrency, security/trust, recovery, migration, or competing diagnoses. Project importance alone does not create a consultation.</p>
-    <p>Long consultations now drain the nonterminal shell handoff, require terminal exit, validate exactly one schema-v3 result envelope, and return that receipt to the enclosing call. This retains the 1.4.4 result-delivery repair without adding fallback.</p>
+    <p>The supported roles <code>advisor-terra</code>, <code>advisor-sol</code> and <code>advisor-astra</code> all start Astra/low for the next consultation. Only an accepted response requesting the adjacent level and primary authorization permit escalation: low → medium → high → extra_high (runtime xhigh). Sufficient advice stops; extra_high is terminal. Each level has one attempt, with no corrective retry.</p>
+    <p>Astra is subject to account and runtime availability; the launcher does not silently fall back. Plugin updates may replace edits to the bundled file. Old two-tier configuration needs migration; catalog entries are diagnostic evidence.</p>
+    <p>Consult only when cheap local evidence leaves unresolved uncertainty with material impact, during an approved-plan checkpoint or an explicit standalone request. Routine, settled-plan, completion and no-delegation work skips consultation.</p>
+    <p>Long consultations drain the nonterminal shell handoff and require exactly one schema-v3 result envelope after terminal exit. This candidate retains the 1.4.4 result-delivery repair without adding fallback.</p>
+    <p>This repository candidate has no durable checkpoint/replay/resume enforcement. Live runtime and installed-plugin activation remain unverified; it is not deployed or released.</p>
 </section>
 <section id="install" aria-labelledby="install-title">
     <h2 id="install-title">Install from OpenAI</h2>
@@ -72,9 +72,9 @@ effort_ladder = ["low", "medium", "high", "xhigh"]
     <div class="fact-grid">
         <div><span>Runs in</span><strong>Codex CLI and desktop on macOS or Linux</strong></div>
         <div><span>Does not use</span><strong>No MCP server, no hosted service, no telemetry</strong></div>
-        <div><span>Active route</span><strong><code>advisor-astra</code> · <code>gpt-6-astra</code> · low first</strong></div>
-        <div><span>Escalation</span><strong>low → medium → high → extra_high</strong></div>
-        <div><span>Runtime</span><strong><code>extra_high</code> maps to <code>xhigh</code></strong></div>
+        <div><span>Standard</span><strong>Astra · <code>gpt-6-astra</code> · low</strong></div>
+        <div><span>Specialist</span><strong>Astra · <code>gpt-6-astra</code> · low</strong></div>
+        <div><span>Supported role</span><strong><code>advisor-astra</code> · <code>gpt-6-astra</code> · low</strong></div>
     </div>
 </section>
 <section aria-labelledby="resources">

@@ -39,11 +39,11 @@ generate_receipt() {
     if (($runtime.parent_thread_id | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") | not)) then error("parent thread id must be a lowercase UUID") else . end |
     if ($runtime.thread_id == $runtime.parent_thread_id) then error("thread ids must differ") else . end |
     if ($runtime.transport != "codex-exec") then error("transport mismatch") else . end |
-    if ($runtime.effort != "low") then error("effort mismatch") else . end |
+    if ($runtime.effort | IN("low","medium","high","xhigh") | not) then error("effort mismatch") else . end |
     if ($runtime.sandbox_policy_type != "read-only") then error("sandbox mismatch") else . end |
     if (($runtime.permission_profile_type | type) != "string" or ($runtime.permission_profile_type | length) == 0) then error("permission profile missing") else . end |
     if ($runtime.permission_profile_type != "managed") then error("permission profile mismatch") else . end |
-    if (($runtime.agent_role == "advisor-astra" and $runtime.model == "gpt-6-astra")) | not then
+    if (($runtime.agent_role | IN("advisor-terra","advisor-sol","advisor-astra")) and $runtime.model == "gpt-6-astra") | not then
       error("wrong role/model pair")
     else . end |
     {
@@ -69,8 +69,8 @@ receipt_matches_contract() {
       "transport"
     ] and
     ($r.transport == "codex-exec") and
-    (($r.agent_role == "advisor-astra" and $r.model == "gpt-6-astra")) and
-    ($r.effort == "low") and
+    ((($r.agent_role | IN("advisor-terra","advisor-sol","advisor-astra")) and $r.model == "gpt-6-astra")) and
+    (($r.effort | IN("low","medium","high","xhigh"))) and
     ($r.sandbox_policy_type == "read-only") and
     ($r.permission_profile_type == "managed")
   ' "$1" >/dev/null
@@ -103,7 +103,7 @@ write_observed_runtime() {
     --arg agent_role "$agent_role" \
     --arg transport "codex-exec" \
     --arg model "$model" \
-    --arg effort "low" \
+    --arg effort "${8:-low}" \
     --arg sandbox "$sandbox" \
     --arg permission_profile_type "$permission_profile_type" \
     '{thread_id:$thread_id,parent_thread_id:$parent_thread_id,agent_role:$agent_role,transport:$transport,model:$model,effort:$effort,sandbox_policy_type:$sandbox,permission_profile_type:$permission_profile_type}' \
@@ -151,7 +151,7 @@ synthetic() {
     "$wrong" \
     '11111111-1111-1111-1111-111111111111' \
     '22222222-2222-2222-2222-222222222222' \
-    'advisor-terra' \
+    'advisor-unknown' \
     'gpt-6-astra' \
     'read-only' \
     'managed' || fail "cannot create synthetic wrong-role runtime evidence"
@@ -220,6 +220,15 @@ synthetic() {
   if ! shasum -a 256 -c "$stale_hash" >/dev/null 2>&1; then
     fail "failed recapture changed an existing receipt"
   fi
+  for role in advisor-terra advisor-sol advisor-astra; do
+    for effort in low medium high xhigh; do
+      write_observed_runtime "$observed" '11111111-1111-1111-1111-111111111111' '22222222-2222-2222-2222-222222222222' "$role" 'gpt-6-astra' 'read-only' 'managed' "$effort"
+      generate_receipt "$observed" "$receipt" || fail "synthetic Astra pair rejected"
+      receipt_matches_contract "$receipt" || fail "synthetic pair predicate mismatch"
+    done
+  done
+  write_observed_runtime "$wrong" '11111111-1111-1111-1111-111111111111' '22222222-2222-2222-2222-222222222222' 'advisor-astra' 'gpt-6-astra' 'read-only' 'managed' 'max'
+  if generate_receipt "$wrong" "$mutated" 2>/dev/null; then fail "unsupported effort accepted"; fi
   pass "synthetic clean-host receipt contract and negative controls"
 }
 

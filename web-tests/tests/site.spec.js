@@ -191,33 +191,33 @@ test('claim surface matches the validated listing', async ({ page }) => {
   await page.goto('/');
   const body = (await bodyText(page)).toLowerCase();
 
-  expect(body).toContain('candidate documentation v1.4.5');
-  expect(body).toContain('read-only astra advice');
-  expect(body).toContain('low effort with verified escalation');
+  expect(body).toContain('candidate documentation v1.4.9-astra.1');
+  expect(body).toContain('automatic read-only advice');
+  expect(body).toContain('smart defaults');
   expect(body).toContain('[advisor]');
   expect(body).toContain('gpt-6-astra');
-  expect(body).not.toContain('gpt-5.6-terra');
-  expect(body).not.toContain('gpt-5.6-sol');
+  expect(body).toContain('advisor-terra');
+  expect(body).toContain('advisor-sol');
   expect(body).toContain('advisor-astra');
-  expect(body).toContain('low first');
+  expect(body).toContain('all start astra/low');
+  expect(body).toContain('next consultation');
   expect(body).toContain('extra_high');
-  expect(body).toContain('maps to xhigh');
+  expect(body).toContain('runtime xhigh');
+  expect(body).toContain('no corrective retry');
   expect(body).toContain('subject to account and runtime availability');
-  expect(body).toContain('plugin updates may replace the bundled file.');
+  expect(body).toContain('plugin updates may replace edits to the bundled file.');
   expect(body).toContain('drain the nonterminal shell handoff');
   expect(body).toContain('exactly one schema-v3 result envelope');
   expect(body).toContain('retains the 1.4.4 result-delivery repair without adding fallback');
-  expect(body).not.toContain('without changing model routing');
-  expect(body).toContain('completion/reassurance consultations are skipped');
-  expect(body).toContain('project importance alone does not create a consultation');
-  expect(body).toContain('advisor-terra');
-  expect(body).toContain('advisor-sol');
+  expect(body).toContain('no durable checkpoint/replay/resume enforcement');
+  expect(body).not.toContain('gpt-5.6-terra');
+  expect(body).not.toContain('gpt-6.1-sol');
 });
 
 test('each route carries the candidate release metadata', async ({ page }) => {
   for (const { path } of PAGES) {
     await page.goto(path);
-    await expect(page.locator('meta[name="advisor-release"]')).toHaveAttribute('content', '1.4.5');
+    await expect(page.locator('meta[name="advisor-release"]')).toHaveAttribute('content', '1.4.9-astra.1');
   }
 });
 
@@ -233,28 +233,41 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('advisor.toml');
   expect(support).toContain('two directories above');
   expect(support).toContain('skills/consultation/SKILL.md');
-  expect(support).toContain('Legacy role names are aliases only');
-  expect(support).toContain('An update or reinstall may replace the bundled file.');
+  expect(support).toContain('Inspect that bundled file in place');
+  expect(support).toContain('do not copy it');
   expect(support).toContain('Invalid TOML');
-  expect(support).toContain('unsupported levels');
+  expect(support).toContain('unsupported-model');
   expect(support).toContain('advisor-astra');
-  expect(support).toContain('fixed Astra ladder');
-  expect(support).toContain('low');
-  expect(support).toContain('extra_high');
+  expect(support).toContain('supported initial Astra/low wrapper aliases');
   expect(support).toContain('does not silently fall back');
-  expect(support).toContain('There is no GUI settings screen in the normal flow.');
+  expect(support).toContain('may replace edits');
   expect(support).toContain('ADVISOR DECISION');
   expect(support).toContain('ADVISOR CALL');
   expect(support).toContain('ADVISOR RESULT');
+  expect(support).toContain('Python 3.11 or newer');
+  expect(support).toContain('tomllib');
   expect(support).toContain('Deferred handoff returns no receipt');
   expect(support).toContain('nonterminal shell');
   expect(support).toContain('write_stdin');
   expect(support).toContain('exactly one schema-v3 envelope');
-  expect(support).toContain('does not replay a consumed level or add model fallback');
-  expect(support).toContain('Response validation stops the pass');
-  expect(support).toContain('does not launch a corrective retry');
+  expect(support).toContain('does not add model fallback');
+  expect(support).toContain('Durable checkpoint/replay/resume is deferred.');
   expect(support).not.toContain('install-agents.sh');
   expect(support).not.toContain('sh plugins/advisor/');
+});
+
+test('support page links a private support and privacy contact channel', async ({ page }) => {
+  await page.goto('/support/');
+  const support = await bodyText(page);
+
+  await expect(page.locator('section[aria-labelledby="private"] a[href="mailto:advisor@zerodelta.dev"]')).toHaveCount(1);
+  expect(support).toContain('Private support and privacy contact');
+  expect(support).toContain('GitHub issues remain the public channel');
+  expect(support).toContain('minimal redacted diagnostics');
+  expect(support).toContain('Do not send secrets or raw session logs');
+  expect(support).toContain('never contacts support automatically');
+  expect(support).toContain('voluntary and user-initiated');
+  await expect(page.locator('section[aria-labelledby="private"] a[href="../privacy/"]')).toHaveCount(1);
 });
 
 test('terms identify the current developer and maintainer', async ({ page }) => {
@@ -271,7 +284,7 @@ test('public boundary and installation language are exact and the cursor is remo
   const landing = await bodyText(page);
 
   expect(landing).toContain('Consultations send bounded packets through your own authenticated Codex/OpenAI account; Zero Delta operates no relay, hosted backend, or intermediary service.');
-  expect(landing).toContain('The consultation child is verified read-only and tool-free. Direct invocation of installed advisor profiles is unsupported.');
+  expect(landing).toContain('The consultation child runs read-only with post-execution runtime validation: the launcher inspects the recorded runtime after execution and rejects the result on any observed tool call. Direct invocation of installed advisor profiles is unsupported.');
   const directoryUrl = 'https://chatgpt.com/plugins/plugins_6a984f37e9c88191a2a777998f7b0521';
   await expect(page.locator(`a[href="${directoryUrl}"]`)).toHaveCount(2);
   expect(landing).toContain('Codex Advisor is available in the official OpenAI Plugins Directory.');
@@ -286,11 +299,17 @@ test('public boundary and installation language are exact and the cursor is remo
   await page.goto('/privacy/');
   const privacy = (await bodyText(page)).toLowerCase();
   expect(privacy).toContain('local integration. the plugin runs from your own codex installation. it has no zero delta-hosted service or remote backend; bounded consultation packets are sent through your authenticated codex/openai account.');
-  expect(privacy).toContain('read-only, zero-tool child. advisor child processes run in a forced read-only sandbox with no tools enabled. they cannot make tool calls or modify local files; the codex runtime still sends the bounded consultation packet directly to openai through your authenticated account.');
+  expect(privacy).toContain('read-only child with post-execution validation. advisor child processes are launched in a read-only sandbox and instructed to use zero tools. the launcher validates the recorded runtime after execution and rejects the result if it observes any tool call; this is an acceptance check, not preventive tool isolation. a prohibited tool call may read additional locally accessible data before rejection, and rejection cannot undo information already processed by openai. the codex runtime still sends the bounded consultation packet directly to openai through your authenticated account.');
+  expect(privacy).not.toContain('no tools enabled');
+  expect(privacy).not.toContain('cannot make tool calls');
+  expect(privacy).not.toContain('tool-free');
+  expect(privacy).toContain('the plugin scripts do not request credentials or read or duplicate credential files.');
+  expect(privacy).toContain('a prohibited tool call could read data accessible in its read-only sandbox before the launcher rejects the result');
+  expect(privacy).not.toContain('the plugin does not request, collect, store, transmit, or handle');
   expect(privacy).not.toContain('local execution.');
   expect(privacy).not.toContain('zero-tool sandboxing.');
-  expect(privacy).toContain('no zero delta relay. consultation packets are sent directly through your authenticated codex/openai account. zero delta receives no packets, runs no proxy, and collects no telemetry.');
-  expect(privacy).toContain('effective date: 10 september 2026');
+  expect(privacy).toContain('no automatic zero delta relay. consultation packets are sent directly through your authenticated codex/openai account. zero delta runs no proxy and collects no telemetry, and it does not automatically receive consultation packets or responses; zero delta may receive consultation content that you voluntarily include in support reports. we ask you to share only redacted receipts through the channels in sections 6 and 7.');
+  expect(privacy).toContain('effective date: 1 october 2026');
   expect(privacy).toContain('live');
   expect(privacy).toContain('advisor.toml');
   expect(privacy).toContain('advanced settings and model-catalog data');
@@ -301,12 +320,64 @@ test('public boundary and installation language are exact and the cursor is remo
   expect(privacy).toContain('no background deletion service');
   expect(privacy).toContain('uninstalling the plugin may leave user state and session logs behind');
   expect(privacy).toContain('advisor-astra');
-  expect(privacy).toContain('low first');
-  expect(privacy).toContain('verified escalation');
-  expect(privacy).toContain('compatibility aliases only');
+  expect(privacy).toContain('all start astra/low');
+  expect(privacy).toContain('primary-authorized adjacent escalation');
   expect(privacy).not.toContain('offline inference');
   expect(privacy).not.toContain('all consultation data resides solely');
   expect(privacy).not.toContain('no third-party transmission');
+});
+
+test('privacy policy names recipients, retention, and controls', async ({ page }) => {
+  // The privacy page must disclose who receives data, how long it is kept, and
+  // what the user controls — without inventing retention periods.
+  await page.goto('/privacy/');
+  const privacy = (await bodyText(page)).toLowerCase();
+
+  // Recipients.
+  expect(privacy).toContain('transmitted to openai for inference through your authenticated account and allowance');
+  expect(privacy).toContain('zero delta and its email provider receive your name, email address, message');
+  expect(privacy).toContain('processed by opalstack and zero delta for security and operational purposes');
+  // Retention.
+  expect(privacy).toContain('governed by your openai account agreements and the account controls openai provides');
+  expect(privacy).toContain('remain until you delete them');
+  expect(privacy).toContain('prune entries older than 30 days');
+  expect(privacy).toContain('retains these logs for about seven days');
+  expect(privacy).toContain('provider backup retention is separate and controlled by the provider');
+  expect(privacy).toContain('retained while your request is being handled and for any necessary follow-up or legal obligation');
+  // Controls.
+  expect(privacy).toContain('journal clear');
+  expect(privacy).toContain('use the controls of your openai account');
+  expect(privacy).toContain('request access to or deletion of your support correspondence');
+  expect(privacy).toContain('subject to applicable constraints');
+  await expect(page.locator('a[href="https://openai.com/policies/privacy-policy/"]')).toHaveCount(1);
+});
+
+test('privacy policy discloses public GitHub support and qualified voluntary sharing', async ({ page }) => {
+  // Filing a GitHub issue is optional and user-initiated, and it is the only
+  // advertised support channel besides email for user-chosen reports.
+  await page.goto('/privacy/');
+  const privacy = (await bodyText(page)).toLowerCase();
+
+  // No automatic transmission is stated precisely, not as a blanket claim.
+  expect(privacy).toContain('no automatic transmission to zero delta. advisor has no relay, proxy, or telemetry backend. zero delta does not automatically receive consultation packets or responses; zero delta may receive consultation content that you voluntarily include in support reports. we ask you to share only redacted receipts through the channels in sections 6 and 7.');
+  expect(privacy).not.toContain('zero delta receives no packets');
+  // GitHub issues are public optional support with named recipients.
+  expect(privacy).toContain('optional, public support channel');
+  expect(privacy).toContain('voluntary and user-initiated');
+  expect(privacy).toContain('github receives your github profile identity');
+  expect(privacy).toContain('bug resolution and support');
+  expect(privacy).toContain('received by zero delta and github');
+  expect(privacy).toContain('readable by anyone');
+  expect(privacy).toContain('public issues are public and searchable');
+  // Retention and deletion are described without invented periods.
+  expect(privacy).toContain('retain public issue discussions as support and bug-resolution history');
+  expect(privacy).toContain('deleting your github account does not guarantee');
+  expect(privacy).toContain('request removal of personal data from reports we can manage');
+  expect(privacy).toContain('copied, cached, or quoted copies may remain elsewhere');
+  // Non-public reports are steered to email; no secrets or raw sessions.
+  expect(privacy).toContain('use the private email channel in section 6 instead');
+  expect(privacy).toContain('do not include secrets, credentials, or raw session logs');
+  await expect(page.locator('a[href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement"]')).toHaveCount(1);
 });
 
 test('terms describe configured model responsibility and preserve legal terms', async ({ page }) => {
@@ -314,9 +385,13 @@ test('terms describe configured model responsibility and preserve legal terms', 
   const terms = await bodyText(page);
 
   expect(terms).toContain('Effective date: 10 September 2026');
-  expect(terms).toContain('fixed Astra model and ordered effort ladder configured');
-  expect(terms).toContain('extra_high');
-  expect(terms).toContain('diagnostic compatibility aliases only');
+  expect(terms).toContain('Python 3.11 or newer');
+  expect(terms).toContain('fixed Astra policy in the bundled');
+  expect(terms).toContain('Standard and Specialist both start Astra/low');
+  expect(terms).toContain('Primary-authorized adjacent escalation');
+  expect(terms).toContain('advisor-astra');
+  expect(terms).toContain('wrapper aliases all start Astra/low');
+  expect(terms).toContain('one attempt per level and no corrective retry');
   expect(terms).toContain('OpenAI usage, quotas, and fees');
   expect(terms).toContain('update or reinstall may replace those edits');
   expect(terms).toContain('MIT License');

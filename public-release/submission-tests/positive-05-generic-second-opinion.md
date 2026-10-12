@@ -1,3 +1,5 @@
+Phase-A attended test status: PENDING, not current live proof. Initial calls use Astra/low; no corrective retry.
+
 ## Name
 
 Generic fictional second-opinion request

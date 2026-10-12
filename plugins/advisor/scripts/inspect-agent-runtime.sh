@@ -48,6 +48,8 @@ jq -ce -s --arg id "$thread_id" --arg expected_parent "$expected_parent" --arg e
   if ($s|length)!=1 or ($t|length)==0 then error("missing metadata") else
     [$t[].model] as $m | [$t[].effort] as $e |
     [$t[].sandbox_policy.type] as $b | [$t[].permission_profile.type] as $p |
+    [ .[] | select(.type=="response_item" and .payload.type=="message" and .payload.role=="user") |
+      [.payload.content[]? | select(.type=="input_text" or .type=="output_text") | .text] | join("") ] as $prompts |
     [ .[] | .. | objects | .type? |
       select(. == "function_call" or . == "custom_tool_call" or . == "collab_tool_call" or . == "tool_call" or . == "tool_use") ] as $tool_events |
     [ .[] | .. | objects |
@@ -55,6 +57,7 @@ jq -ce -s --arg id "$thread_id" --arg expected_parent "$expected_parent" --arg e
     if $s[0].id!=$id or $s[0].source!="exec" or
        ($s[0].originator!="codex_exec" and $s[0].originator!="Codex Desktop") or
        ($s[0].agent_role // null)!=null or ($s[0].parent_thread_id // null)!=null or
+       ($prompts|length)!=1 or ($prompts[0] | startswith("You are " + $expected_role + ", a consultation-only technical advisor.\n") | not) or
        ($m|unique)!=[$expected_model] or ($e|unique)!=[$expected_effort] or
        ($b|unique)!=["read-only"] or ($p|unique|length)!=1 or
        any($p[]; type!="string" or length==0) or ($tool_events|length)!=0 or ($reroute_events|length)!=0

@@ -36,13 +36,14 @@ validate_feature_state() {
 select_advisor_role() {
   normalized=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
   case "$normalized" in
-    standard|specialist) printf '%s\n' advisor-astra ;;
+    standard) printf '%s\n' advisor-terra ;;
+    specialist) printf '%s\n' advisor-sol ;;
     *) return 1 ;;
   esac
 }
 
 model_for_role() {
-  case "$1" in advisor-astra) printf '%s\n' gpt-6-astra ;; *) return 1 ;; esac
+  case "$1" in advisor-terra) printf '%s\n' gpt-6-astra ;; advisor-sol) printf '%s\n' gpt-6-astra ;; *) return 1 ;; esac
 }
 
 require_ephemeral_unavailable_route() {
@@ -60,7 +61,7 @@ from pathlib import Path
 
 raw_path, evidence_path = map(Path, sys.argv[1:3])
 expected_role, expected_model = sys.argv[3:]
-valid_pairs = {"advisor-astra":"gpt-6-astra"}
+valid_pairs = {"advisor-terra":"gpt-6-astra", "advisor-sol":"gpt-6-astra"}
 if valid_pairs.get(expected_role) != expected_model:
     raise SystemExit("unsupported expected role/model pair")
 events = []
@@ -219,8 +220,10 @@ if re.search(r'(?i)(api[_-]?key|authorization|bearer|password|token)["\s:]+[^"\s
 fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))["cases"]
 expected = {c["id"]: c for c in fixtures}
 def selected_pair(risk):
-    if risk in {"standard", "specialist"}:
-        return "advisor-astra", "gpt-6-astra"
+    if risk == "standard":
+        return "advisor-terra", "gpt-6-astra"
+    if risk == "specialist":
+        return "advisor-sol", "gpt-6-astra"
     raise SystemExit("invalid fixture risk")
 if data.get("status") == "unavailable":
     if not allow:
@@ -410,12 +413,10 @@ run_trial() {
   progress "$schema: session $sessions_run/40, case $id, trial $attempt"
   eval_prompt="Classify this task under the installed Advisor consultation contract. For a consult candidate, run plugins/advisor/scripts/inspect-parent-runtime.sh before ADVISOR DECISION. This ephemeral evaluation has no persisted parent rollout, so emit exactly one ADVISOR DECISION with route: unavailable, do not emit ADVISOR CALL, and do not spawn a child. Do not implement. Finish with exactly one line: ADVISOR_EVAL route=unavailable. TASK: $prompt_text"
   codex exec --json --ignore-user-config --ignore-rules --ephemeral "$feature_switch" multi_agent_v2 \
-    -c "agents.advisor-terra.description=Deprecated Astra low compatibility alias" \
+    -c "agents.advisor-terra.description=Advisor Terra read-only consultation" \
     -c "agents.advisor-terra.config_file=\"$runtime_home/agents/advisor-terra.toml\"" \
-    -c "agents.advisor-sol.description=Deprecated Astra low compatibility alias" \
+    -c "agents.advisor-sol.description=Advisor Sol read-only consultation" \
     -c "agents.advisor-sol.config_file=\"$runtime_home/agents/advisor-sol.toml\"" \
-    -c "agents.advisor-astra.description=Active Astra low-first consultation" \
-    -c "agents.advisor-astra.config_file=\"$runtime_home/agents/advisor-astra.toml\"" \
     -c "shell_environment_policy.set={CODEX_HOME=\"$runtime_home\"}" \
     -C "$project" --sandbox read-only --skip-git-repo-check "$eval_prompt" </dev/null >"$raw" 2>/dev/null || write_unavailable runtime_evidence_unavailable
   parse_runtime_evidence "$raw" "$evidence" "$selected_role" "$selected_model" || write_unavailable runtime_evidence_unavailable

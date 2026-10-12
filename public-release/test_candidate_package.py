@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import py_compile
 import shutil
 import stat
 import subprocess
@@ -19,6 +20,7 @@ PUBLIC_RELEASE = Path(__file__).resolve().parent
 INVENTORY_TOOL = PUBLIC_RELEASE / "candidate_inventory.py"
 FREEZE_TOOL = PUBLIC_RELEASE / "freeze-candidate.sh"
 PACKAGE_TOOL = PUBLIC_RELEASE / "package-candidate.sh"
+VALIDATOR_TOOL = PUBLIC_RELEASE / "validate-public-artifacts.sh"
 
 SPEC = importlib.util.spec_from_file_location("candidate_inventory_under_test", INVENTORY_TOOL)
 assert SPEC and SPEC.loader
@@ -47,10 +49,18 @@ class CandidatePackageTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(tool, destination)
         files = {
-            "plugins/advisor/.codex-plugin/plugin.json": json.dumps({"name": "advisor", "version": "9.9.9"}),
+            "plugins/advisor/.codex-plugin/plugin.json": json.dumps({
+                "name": "advisor",
+                "version": "9.9.9",
+                "interface": {
+                    "supportURL": "https://zerodelta.dev/advisor/support/",
+                    "category": "Developer Tools",
+                    "shortDescription": "Useful read-only advice.",
+                    "longDescription": "Detailed, publishable information for users.",
+                },
+            }),
             "plugins/advisor/advisor-response.schema.json": '{"type":"object"}\n',
             "plugins/advisor/models.json": '{"models":[]}\n',
-            "plugins/advisor/settings.schema.json": '{"type":"object"}\n',
             "plugins/advisor/agents/advisor.toml": "name = 'advisor'\n",
             "plugins/advisor/assets/icon.png": "not-a-real-image\n",
             "plugins/advisor/evals/cases.json": "[]\n",
@@ -80,6 +90,17 @@ class CandidatePackageTests(unittest.TestCase):
     def _package(self, name: str) -> subprocess.CompletedProcess[str]:
         return self._run("sh", "public-release/package-candidate.sh", "--json", name)
 
+    def _add_root_notice_copies(self, plugin_copies: tuple[str, ...] = ("LICENSE", "NOTICE.md")) -> None:
+        staged = ["LICENSE", "NOTICE.md"]
+        for name in ("LICENSE", "NOTICE.md"):
+            root = self.repo / name
+            root.write_text(f"Advisor {name} fixture notice.\n", encoding="utf-8")
+            if name in plugin_copies:
+                plugin = self.repo / "plugins/advisor" / name
+                plugin.write_bytes(root.read_bytes())
+                staged.append(f"plugins/advisor/{name}")
+        self._git("add", *staged)
+
     def test_archive_is_deterministic_and_exactly_matches_inventory(self) -> None:
         inventory = self._inventory()
         first = self._package("first.zip")
@@ -105,18 +126,56 @@ class CandidatePackageTests(unittest.TestCase):
 
     def test_full_tree_digest_changes_for_root_models_schema_and_assets(self) -> None:
         original = self._inventory()["digest"]
-        for relative in ("models.json", "settings.schema.json", "assets/icon.png"):
+        for relative in ("models.json", "advisor-response.schema.json", "assets/icon.png"):
             target = self.repo / "plugins/advisor" / relative
             target.write_text(target.read_text(encoding="utf-8") + "changed\n", encoding="utf-8")
             changed = self._inventory()["digest"]
             self.assertNotEqual(changed, original)
             original = changed
 
+    def test_archive_ships_byte_exact_root_notice_copies(self) -> None:
+        self._add_root_notice_copies()
+        inventory = self._inventory()
+        names = [item["name"] for item in inventory["files"]]
+        self.assertIn("advisor/LICENSE", names)
+        self.assertIn("advisor/NOTICE.md", names)
+        self._package("notices.zip")
+        with zipfile.ZipFile(self.repo / "notices.zip") as archive:
+            self.assertEqual(archive.read("advisor/LICENSE"), (self.repo / "LICENSE").read_bytes())
+            self.assertEqual(archive.read("advisor/NOTICE.md"), (self.repo / "NOTICE.md").read_bytes())
+
+    def test_tampered_plugin_notice_copy_is_rejected(self) -> None:
+        self._add_root_notice_copies()
+        for relative in ("plugins/advisor/NOTICE.md", "plugins/advisor/LICENSE"):
+            with self.subTest(copy=relative):
+                target = self.repo / relative
+                original = target.read_bytes()
+                target.write_bytes(original + b"tampered\n")
+                result = self._run("python3", "public-release/candidate_inventory.py", "inventory", "--repo", str(self.repo), "--digest", check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("byte-match", result.stderr)
+                target.write_bytes(original)
+
+    def test_missing_plugin_notice_copy_is_rejected(self) -> None:
+        self._add_root_notice_copies(("NOTICE.md",))
+        result = self._run("python3", "public-release/candidate_inventory.py", "inventory", "--repo", str(self.repo), "--digest", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing", result.stderr)
+
     def test_embedded_manifest_identity_and_version_are_checked(self) -> None:
         self._package("candidate.zip")
         with zipfile.ZipFile(self.repo / "candidate.zip") as archive:
             manifest = json.loads(archive.read("advisor/.codex-plugin/plugin.json"))
-        self.assertEqual(manifest, {"name": "advisor", "version": "9.9.9"})
+        self.assertEqual(manifest, {
+            "name": "advisor",
+            "version": "9.9.9",
+            "interface": {
+                "supportURL": "https://zerodelta.dev/advisor/support/",
+                "category": "Developer Tools",
+                "shortDescription": "Useful read-only advice.",
+                "longDescription": "Detailed, publishable information for users.",
+            },
+        })
         manifest["name"] = "not-advisor"
         (self.repo / "plugins/advisor/.codex-plugin/plugin.json").write_text(json.dumps(manifest), encoding="utf-8")
         result = self._run("python3", "public-release/candidate_inventory.py", "inventory", "--repo", str(self.repo), "--digest", check=False)
@@ -249,6 +308,46 @@ class CandidatePackageTests(unittest.TestCase):
         self._run("sh", "public-release/freeze-candidate.sh", "--write")
         checked = self._run("sh", "public-release/freeze-candidate.sh", "--check")
         self.assertIn("PASS", checked.stdout)
+
+
+class PublicArtifactValidatorTests(unittest.TestCase):
+    """Generated bytecode must not mask disclosures in source files."""
+
+    def test_generated_bytecode_is_skipped_but_source_and_fake_bytecode_are_scanned(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            validator = repo / "public-release" / VALIDATOR_TOOL.name
+            validator.parent.mkdir()
+            shutil.copy2(VALIDATOR_TOOL, validator)
+            plugin = repo / "plugins" / "advisor"
+            cache = plugin / "tests" / "__pycache__"
+            cache.mkdir(parents=True)
+            seed = repo / "seed.py"
+            seed.write_text('VALUE = "/Users/example/private"\n', encoding="utf-8")
+            bytecode = cache / f"seed.{sys.implementation.cache_tag}.pyc"
+            py_compile.compile(str(seed), cfile=str(bytecode), doraise=True)
+            self.assertIn(b"/Users/example/private", bytecode.read_bytes())
+
+            def scan() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    ["sh", str(validator), str(plugin)], text=True,
+                    capture_output=True, check=False,
+                )
+
+            clean = scan()
+            self.assertEqual(clean.returncode, 0, clean.stderr)
+            source = plugin / "scripts" / "disclosure.py"
+            source.parent.mkdir()
+            source.write_text('VALUE = "/Users/example/private"\n', encoding="utf-8")
+            disclosed = scan()
+            self.assertNotEqual(disclosed.returncode, 0)
+            self.assertIn("disclosure hazard (absolute home path)", disclosed.stderr)
+            source.unlink()
+            fake_bytecode = cache / f"fake.{sys.implementation.cache_tag}.pyc"
+            fake_bytecode.write_text('VALUE = "/Users/example/private"\n', encoding="utf-8")
+            disguised = scan()
+            self.assertNotEqual(disguised.returncode, 0)
+            self.assertIn("disclosure hazard (absolute home path)", disguised.stderr)
 
 
 def load_tests(loader: unittest.TestLoader, tests: unittest.TestSuite, pattern: str | None) -> unittest.TestSuite:

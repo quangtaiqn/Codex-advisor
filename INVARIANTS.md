@@ -1,114 +1,23 @@
-# Invariants — Advisor
+# Active invariants — phase A
 
-> System contract. `plugins/advisor/scripts/verify.sh --static` is the
-> canonical local gate for every invariant below.
+The root owns architecture, implementation routing, verification, and acceptance. Advisors are read-only, non-authoritative, use zero tools, and never delegate, implement, deploy, or perform final review. The root performs any repository or web research and includes relevant evidence and source references in a bounded decision packet. When evidence is insufficient, the advisor may recommend only a concrete research-first next step and list missing evidence under FOLLOW-UP AREAS, outside this consultation. An unavailable result cannot be rescued by a higher level or a fallback model.
 
-## Standing invariants
+The sole supported wrapper model-output format is one JSON object. Wrapper-owned semantic validation checks exact keys, types, nonblank strings/checks, duplicate fields and structured escalation before rendering the canonical eight-line ADVISOR RESPONSE receipt. This redacted failure boundary never publishes rejected content. One command launches at most one child and one attempt; no corrective retry occurs. A chain can use at most four adjacent levels, once each, under primary control. Runtime inspection must prove a distinct Codex consultation thread, the exact selected role/model/effort, read-only isolation, managed permission provenance and zero tool calls, with allowlisted `codex_exec` or `Codex Desktop` provenance. A tool call is rejected after execution; this is not preventive tool isolation and cannot undo data already processed by a prohibited tool.
 
-### INV-1 — No silent blocking waits
-area: ["plugins/advisor/scripts/**/*.sh"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Live evaluation and stall-prone operations must emit progress to stderr without contaminating machine-readable output. Reaching the history-mapping threshold requires review, but verified remediation or area-touch history is not itself a defect when this canonical gate passes; unresolved recurrence or missing gate evidence remains an escalation.
+Standard/Specialist and advisor-terra/advisor-sol/advisor-astra are supported wrapper entrypoints, all starting gpt-6-astra/low. Tier/role changes do not authorize a new level or reset the issue budget. Direct/native role invocation is unsupported; use the fixed launcher and its verified receipt. Model/catalog declarations are documentation, not live capability or entitlement proof. No model/effort fallback is permitted.
 
-## Project-specific invariants
+Each issue starts low. Higher calls require an accepted previous result, an adjacent escalation.next_level with nonblank reason, unresolved_difficulty and required_resolution, and the primary's confirmation that material uncertainty remains after cheap local evidence. Use --previous-result RECEIPT --authorize-escalation with --level medium|high|extra_high. Admission rechecks current parent, exact child/session, policy/transport revision, packet digest, persisted prompt/role/level and response, model/effort, isolation, tools and permission provenance before spawn. A Boolean --chain-authorized flag cannot grant admission. extra_high is logical terminal; runtime effort is xhigh. xhigh is a boundary alias, not a fifth budget. next_level=null stops immediately; return the best result and uncertainty at the terminal level. Transport failures, malformed responses, timeout/cancellation, provenance/model/effort mismatch and tool use are terminal; higher effort cannot repair them.
 
-### INV-2 — Root authority
-area: ["plugins/advisor/skills/consultation/**", "README.md", "SPEC.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: The root owns architecture, routing, verification, and acceptance; advisor output is evidence, never authority.
+Phase A has no durable checkpoint ledger, crash-resume/reconcile, cross-session replay prevention or concurrent duplicate admission. The primary tracks level usage within the current session. A receipt is navigation evidence, not a consumed token; phase B will implement durable at-most-once admission, tombstones/retention, resume and replay protection only after separate approval. This limitation does not weaken one-attempt transport, adjacent transition checks, or ownership.
 
-### INV-3 — Consultation only
-area: ["plugins/advisor/agents/**", "plugins/advisor/skills/consultation/**"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: The plugin may spawn one fresh read-only advisor but may not implement, route implementation, or perform final review.
+The fixed launcher retains --ignore-user-config, --ignore-rules, --sandbox read-only and an isolated workdir. Python 3.11+ runtime preflight precedes helper import/provider launch; Vulture's Python 3.14 is a separate verification toolchain. Deadline, output/packet/queue bounds and child process supervision remain enabled. Startup ownership/cancel-request guards establish ownership before cleanup; an unconditional exit trap removes only the owned mode-0700 consultation directory under Codex home. Preexisting paths and unrelated processes are preserved. Uncatchable termination can leave state; do not infer that no child spawned and do not retry it.
 
-### INV-4 — Selective activation
-area: ["plugins/advisor/evals/**", "plugins/advisor/skills/consultation/**"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Eligible checkpoints receive at most one advisor opportunity before implementation; routine, settled, completion/reassurance, and borderline work spawn no advisor.
+Transport resolution is shared by launch, discovery, doctor, version probes, canary and inspectors: valid ADVISOR_CODEX_BIN, then a valid private installed WSL bridge, then PATH. Invalid explicit overrides fail without fallback. Binary/source/sessions_directory are kept together. The bridge retains checksum, owner/mode and symlink checks, bounded preflight and path conversion. Do not reinstall a bridge or modify Windows/WSL configuration to repair a test.
 
-### INV-5 — Exact runtime identity and isolation
-area: ["plugins/advisor/agents/**", "plugins/advisor/scripts/evaluate-triggers.sh", "plugins/advisor/scripts/inspect-agent-runtime.sh", "plugins/advisor/scripts/inspect-parent-runtime.sh", "plugins/advisor/scripts/run-advisor.sh", "docs/public-directory-compatibility.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: A successful consultation requires an identified parent plus a regular nonsymlinked launcher resolved from the absolute installed-skill root and invoked through the escalated-command boundary, never a workspace-resolved script; packet input uses a non-interpolating quoted heredoc, transport files remain beneath nonsandbox-writable Codex home, and every distinct Codex exec child proves fixed Astra model/effort from the active level ladder, read-only runtime policy, fresh thread, allowlisted codex_exec or Codex Desktop provenance, no model reroute or migration, and zero tool use before response validation. The installed JSON Schema is the sole supported wrapper model-output contract; wrapper-owned semantic validation renders only an accepted object as the canonical eight-line receipt, while direct/native role invocation is unsupported and not schema-validated. Each level launches at most one child: schema or response-validation failure, runtime, launch, identity, isolation, provenance, reroute, or tool-use failures are terminal and never retry. A durable checkpoint ledger reserves the selected level before launch and records completion, failure, or uncertainty so interruption cannot silently reopen it. Cancellation terminates and reaps only the wrapper-owned process group. Rejected content never leaves its private mode-0700 consultation directory, and an unconditional exit trap cleanup removes that directory after every wrapper exit. Reaching the history-mapping threshold requires review, but verified remediation or area-touch history is not itself a defect when this canonical gate passes; unresolved recurrence or missing gate evidence remains an escalation.
+Envelope schema_version=3 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.5 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v3 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
 
-A response-validation failure emits only a redacted failure class and field.
+The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its A writer emits contract 1.5 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
 
-### INV-6 — Switchyard separation
-area: ["plugins/advisor/skills/consultation/**", "README.md", "SPEC.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Implementation routing remains outside this plugin and follows the repository's normal Switchyard policy.
+## Historical evidence and deferred scope
 
-### INV-7 — Safe installation and evaluation
-area: ["plugins/advisor/scripts/install-agents.sh", "plugins/advisor/scripts/evaluate-triggers.sh"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Installation and evaluation are idempotent, fail closed, exclude auth handling, and do not mutate contract-owned live state.
-
-### INV-8 — Provenance preservation
-area: ["LICENSE", "NOTICE.md", "README.md", "plugins/advisor/.codex-plugin/plugin.json"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: The fork preserves upstream license credit and identifies its audited base and current maintainer.
-
-### INV-9 — No unattended publication
-area: ["README.md", "SPEC.md", ".agents/plugins/marketplace.json"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Overnight work stops at a validated local checkpoint without live installation, push, marketplace mutation, or publication.
-
-### INV-10 — Visible consultation lifecycle
-area: ["plugins/advisor/skills/consultation/**", "plugins/advisor/scripts/verify.sh", "README.md", "SPEC.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Every consult emits a visible running `ADVISOR CALL` receipt and a completed or unavailable `ADVISOR RESULT` receipt; unavailable evidence records `decision: blocked` and remains fail-closed, receipts do not replace runtime proof, the distinct Codex consultation thread remains inspectable, and skips emit neither receipt nor transport invocation. A nonempty shell-tool `session_id` is nonterminal: the caller drains that exact handle, preserves all tool output, requires terminal exit, emits exactly one schema-v3 envelope, and only then renders a receipt; an outer wait or heartbeat is never result evidence.
-
-### INV-11 — Bounded zero-tool consultation
-area: ["plugins/advisor/agents/**", "plugins/advisor/skills/consultation/**", "README.md", "SPEC.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: The root completes repository and web research before consultation and supplies enough relevant evidence and source references for a decision; advisors make no tool call, file inspection, web fetch, or independent research attempt, and may only identify missing evidence, research questions, or bounded brainstorming areas for a root-routed follow-up.
-
-The root may assign bounded evidence gathering to separate research workers before assembling the decision packet; the consulted advisor still uses zero tools and never delegates.
-
-### INV-12 — Redacted deferred audit
-area: ["plugins/advisor/scripts/advisor-audit.sh", "plugins/advisor/scripts/verify.sh", "plugins/advisor/skills/consultation/references/operations.md", "README.md", "SPEC.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Audit schema v2 is read-only, progress-visible, window-bounded, and aggregate-only; it resolves exact current child identity from full-file metadata before windowing activity, keeps exact top-level decision counts, child sessions, completed role-bearing parent spawns, request coverage, and role-free child-correlated activity separate, never infers completion or selected role from corroboration, reports unavailable completion evidence explicitly, and never emits session content, identifiers, filenames, paths, contact data, secret-shaped values, or costs.
-
-### INV-13 — Inspected-result follow-up boundary
-area: ["plugins/advisor/skills/consultation/**", "README.md", "SPEC.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: A valid follow-up requires a processed recommendation or concrete research-first next step plus mandatory read-only, zero-tool runtime inspection; only then may the root route research or brainstorming to Luna or Terra outside consultation and optionally start a fresh separately receipted consultation. An unavailable result remains blocked and cannot be rescued.
-
-### INV-14 — Live tier configuration and bounded discovery
-area: ["plugins/advisor/advisor.toml", "plugins/advisor/scripts/advisor_config.py", "plugins/advisor/scripts/advisor_process.py", "plugins/advisor/scripts/run-advisor.sh", "plugins/advisor/scripts/inspect-agent-runtime.sh"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: Active routing loads only the installed regular, nonsymlinked, bounded
-`advisor.toml`, with one fixed Astra model and the low/medium/high/xhigh ladder plus a
-frozen content digest per checkpoint pass. No state, catalog, canary, preset, or legacy
-role name overrides it; higher levels require an adjacent validated escalation and real
-children still prove exact runtime identity, effort, read-only isolation, zero tools,
-and schema. Legacy roles remain compatibility aliases and advanced state tools cannot
-claim to alter active routing.
-Model discovery remains an owned, bounded app-server process with inherited Codex
-provider context, actual JSON-RPC validation, safe state files, and no inference or
-credential handling.
-
-### INV-15 — Current public release evidence
-area: ["docs/public-listing.md", "site/**", "public-release/upload_readiness.py", "public-release/verify-upload-ready.sh", "public-release/test_upload_readiness.py", "public-release/test_candidate_package.py", "public-release/package-candidate.sh", "docs/release-process.md"]
-gate_test: plugins/advisor/scripts/verify.sh
-threshold: 3
-rationale: The canonical static gate covers the offline release-checker tests. Separately, every release requires committing and pushing the exact source, creating or updating the matching GitHub `vVERSION` release with accurate notes and the exact same marketplace ZIP, and separately verifying that the tag resolves to the intended source and the downloaded asset SHA-256 equals the marketplace ZIP SHA-256. Then marketplace upload readiness requires running `public-release/verify-upload-ready.sh [--json] ARCHIVE.zip` immediately before every upload for fresh, fail-closed evidence of the exact current Git-bound candidate ZIP, complete marketplace descriptions, version-marked local pages, and byte-identical public site pages/assets. The upload-readiness script validates ZIP/listing/site only; GitHub verification is a separate required step. Release completion requires the website, descriptions, GitHub release, and owner-confirmed marketplace publication. No candidate receipt, built ZIP, offline mode, or prior release evidence authorizes upload.
-# INV-1.4 Usage privacy and accounting
-
-Usage accounting is structured, bounded, and honest: unavailable components are null, aggregate coverage is partial when any component is absent, and zero remains a valid counter. The content-free journal is opt-in, owner-only, atomic, bounded, and eligible for pruning after 30 days; pruning occurs only during a later journal write, never as a background deletion service. A write error never changes accepted advice. State belongs under Codex home, outside the plugin cache, and an explicit restore retains one prior settings revision.
+CP0–CP6, Advisor_New_Plan.md, migration/runtime verification plans and routing-checkpoint receipts describe source SHA 5c2e736 or earlier. They are retained as history and cannot establish readiness of this merge. No durable at-most-once or crash-resume claim is made in A. Every level has one attempt. Primary-controlled sufficient-stop, terminal xhigh and read-only/zero-tool acceptance remain active.

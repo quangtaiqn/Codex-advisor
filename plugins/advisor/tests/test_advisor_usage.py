@@ -42,6 +42,7 @@ import json, os, shutil, sys, time
 from pathlib import Path
 args=sys.argv[1:]
 if args == ["--version"]: print("codex-cli 0.153.2"); raise SystemExit(0)
+prompt=sys.stdin.read()
 model=args[args.index("--model")+1]; effort=args[args.index("-c")+1].split('"')[1]
 output=Path(args[args.index("--output-last-message")+1])
 counter=Path(os.environ["FAKE_COUNT"])
@@ -49,6 +50,7 @@ attempt=int(counter.read_text())+1 if counter.exists() else 1
 counter.write_text(str(attempt))
 child=f"{attempt:08x}-1111-7111-8111-{attempt:012x}"
 events=[{"type":"session_meta","payload":{"id":child,"source":"exec","originator":"codex_exec"}}, {"type":"turn_context","payload":{"model":model,"effort":effort,"sandbox_policy":{"type":"read-only"},"permission_profile":{"type":"managed"}}}]
+events.append({"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":prompt}]}})
 sessions=Path(os.environ["CODEX_HOME"])/"sessions"/"fixture"; sessions.mkdir(parents=True,exist_ok=True)
 (sessions/f"rollout-fake-{child}.jsonl").write_text("".join(json.dumps(x)+"\n" for x in events))
 case=os.environ.get("FAKE_CASE","success")
@@ -57,6 +59,8 @@ if case == "partial" and attempt == 2: usage={"output_tokens":attempt*3}
 print(json.dumps({"type":"thread.started","thread_id":child}), flush=True)
 print(json.dumps({"type":"turn.completed","usage":usage}), flush=True)
 if case == "hang":
+    ready=os.environ.get("FAKE_USAGE_READY")
+    if ready: Path(ready).write_text("ready")
     while True: time.sleep(1)
 if case == "journal-failure":
     journal=Path(os.environ["CODEX_HOME"])/"advisor"/"usage-journal"
@@ -90,11 +94,11 @@ class UsageTests(unittest.TestCase):
             "finished_at": (when + dt.timedelta(seconds=1))
             .isoformat()
             .replace("+00:00", "Z"),
-            "tier": "standard",
-            "model": "gpt-5.6-terra",
-            "effort": "high",
+            "tier": "advisor",
+            "model": "gpt-6-astra",
+            "effort": "low",
             "outcome": "accepted",
-            "transport_contract_version": "1.4",
+            "transport_contract_version": "1.5",
             "total_duration_ms": 1000,
             "attempts": [
                 {
@@ -106,6 +110,16 @@ class UsageTests(unittest.TestCase):
             ],
             "totals": dict(usage),
         }
+
+    def test_legacy_record_reader_preserves_original_contract(self):
+        legacy=self.record()
+        legacy["transport_contract_version"]="1.4"
+        legacy["tier"]="standard"
+        legacy["model"]="gpt-5.6-terra"
+        legacy["effort"]="high"
+        parsed=config.validate_journal_record(legacy)
+        self.assertEqual(parsed["transport_contract_version"],"1.4")
+        self.assertEqual((parsed["tier"],parsed["model"],parsed["effort"]), ("standard","gpt-5.6-terra","high"))
 
     def enable(self):
         self.home.mkdir(mode=0o700, exist_ok=True)
@@ -123,17 +137,17 @@ class UsageTests(unittest.TestCase):
             self.assertNotIn(forbidden, text)
         self.assertEqual(config.clear_usage_journal(paths=self.paths), 1)
 
-    def test_astra_opt_in_journal_record_is_written_durably(self):
+    def test_advisor_journal_record_is_written_durably(self):
         self.enable()
         record = self.record("323e4567-e89b-42d3-a456-426614174000")
-        record.update({"tier": "opt-in", "model": "gpt-6-astra"})
+        record.update({"tier": "advisor", "model": "gpt-6-astra"})
 
         self.assertTrue(config.write_usage_journal(record, paths=self.paths))
 
         path = self.paths.journal / f"{record['consultation_id']}.json"
         self.assertTrue(path.is_file())
         persisted = config.validate_journal_record(config.read_json(path))
-        self.assertEqual((persisted["tier"], persisted["model"]), ("opt-in", "gpt-6-astra"))
+        self.assertEqual((persisted["tier"], persisted["model"]), ("advisor", "gpt-6-astra"))
 
     def test_journal_strict_retention_concurrency_and_write_failure(self):
         bad = self.record()
@@ -174,7 +188,7 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(len(list(self.paths.journal.glob("*.json"))), 8)
         with (
             mock.patch.object(
-                config, "_atomic_write", side_effect=OSError("private content")
+                sys.modules["advisor_journal"], "_atomic_write", side_effect=OSError("private content")
             ),
             self.assertRaises(OSError),
         ):
@@ -247,11 +261,15 @@ class UsageTests(unittest.TestCase):
         fake = bindir / "codex"
         fake.write_text(FAKE_CODEX)
         fake.chmod(0o700)
+        sessions = self.home / "sessions" / "fixture"
+        sessions.mkdir(parents=True, exist_ok=True)
+        parent_rows = [{"type":"session_meta","payload":{"id":PARENT}}, {"type":"turn_context","payload":{"sandbox_policy":{"type":"workspace-write"},"permission_profile":{"type":"managed"}}}]
+        (sessions / f"rollout-fake-{PARENT}.jsonl").write_text("".join(json.dumps(row)+"\n" for row in parent_rows))
         env = {
             **os.environ,
             "HOME": str(self.base),
             "WSL_DISTRO_NAME": "",
-            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_CODEX_BIN": str(fake),
             "ADVISOR_TRANSPORT_CONFIG": str(self.base / "no-wsl-transport-config.json"),
             "PATH": f"{bindir}:{os.environ['PATH']}",
             "CODEX_HOME": str(self.home),
@@ -264,8 +282,6 @@ class UsageTests(unittest.TestCase):
                 str(TRANSPORT),
                 "--tier",
                 "standard",
-                "--checkpoint-key",
-                f"usage-test-{self.transport_calls}",
                 "--parent-thread",
                 PARENT,
                 "--sessions-dir",
@@ -338,16 +354,21 @@ class UsageTests(unittest.TestCase):
         fake = bindir / "codex"
         fake.write_text(FAKE_CODEX)
         fake.chmod(0o700)
+        sessions = self.home / "sessions" / "fixture"
+        sessions.mkdir(parents=True, exist_ok=True)
+        parent_rows = [{"type":"session_meta","payload":{"id":PARENT}}, {"type":"turn_context","payload":{"sandbox_policy":{"type":"workspace-write"},"permission_profile":{"type":"managed"}}}]
+        (sessions / f"rollout-fake-{PARENT}.jsonl").write_text("".join(json.dumps(row)+"\n" for row in parent_rows))
         env = {
             **os.environ,
             "HOME": str(self.base),
             "WSL_DISTRO_NAME": "",
-            "ADVISOR_CODEX_BIN": "",
+            "ADVISOR_CODEX_BIN": str(fake),
             "ADVISOR_TRANSPORT_CONFIG": str(self.base / "no-wsl-transport-config.json"),
             "PATH": f"{bindir}:{os.environ['PATH']}",
             "CODEX_HOME": str(self.home),
             "FAKE_COUNT": str(self.base / "count"),
             "FAKE_CASE": "hang",
+            "FAKE_USAGE_READY": str(self.base / "usage-ready"),
         }
         child = subprocess.Popen(
             [
@@ -370,9 +391,10 @@ class UsageTests(unittest.TestCase):
         child.stdin.write(PACKET)
         child.stdin.close()
         deadline = time.monotonic() + 3
-        while not (self.base / "count").exists() and time.monotonic() < deadline:
+        ready = self.base / "usage-ready"
+        while not ready.exists() and time.monotonic() < deadline:
             time.sleep(0.02)
-        self.assertTrue((self.base / "count").exists())
+        self.assertTrue(ready.exists())
         child.terminate()
         self.assertEqual(child.wait(timeout=5), 130)
         envelope = json.loads(child.stdout.read())
@@ -585,6 +607,7 @@ class UsageTests(unittest.TestCase):
         journal = self.base / "journal"
         journal.mkdir()
         duplicate = self.record()
+        duplicate.update(tier="standard", model="gpt-5.6-terra", effort="high", transport_contract_version="1.4")
         duplicate["started_at"] = "2026-09-04T00:00:01Z"
         duplicate["finished_at"] = "2026-09-04T00:00:02Z"
         duplicate["attempts"][0]["usage"]["input"] = 11
@@ -604,6 +627,35 @@ class UsageTests(unittest.TestCase):
             report["coverage"],
             {"correlated": 1, "uncorrelatable": 3, "deduplicated": 1},
         )
+
+    def test_current_accounting_correlates_production_receipt_and_rejects_forged_role(self):
+        result = self.transport("success", journal=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        envelope = json.loads(result.stdout)
+        sessions = self.home / "sessions"
+        parent_path = next(sessions.rglob("*" + PARENT + ".jsonl"))
+        original = parent_path.read_text()
+        stamp = dt.datetime.now(dt.timezone.utc).isoformat()
+        call = {"type": "response_item", "timestamp": stamp, "payload": {
+            "type": "custom_tool_call", "name": "exec", "call_id": "current-call",
+            "input": "await tools.exec_command({cmd:'sh /installed/run-advisor.sh --level low'})"}}
+        def write_receipt(value):
+            output = {"type": "response_item", "timestamp": stamp, "payload": {
+                "type": "custom_tool_call_output", "call_id": "current-call", "output": json.dumps(value)}}
+            parent_path.write_text(original + json.dumps(call) + "\n" + json.dumps(output) + "\n")
+        def report():
+            return self.audit(sessions, "--mode", "accounting", "--journal-dir", str(self.paths.journal),
+                              "--since", "2026-01-01T00:00:00Z", "--until", "2027-01-01T00:00:00Z")
+        write_receipt(envelope)
+        current = report()
+        self.assertEqual(current["consultations"], 1)
+        self.assertEqual(current["attempts"], 1)
+        self.assertEqual(current["coverage"]["deduplicated"], 1)
+        self.assertEqual(current["usage"]["totals"]["input"], 10)
+        envelope["runtime"]["agent_role"] = "advisor-sol"
+        envelope["selection"]["role"] = "advisor-sol"
+        write_receipt(envelope)
+        self.assertEqual(report()["consultations"], 0)
 
     def test_legacy_window_uses_deltas_and_handles_counter_reset(self):
         sessions = self.base / "sessions"

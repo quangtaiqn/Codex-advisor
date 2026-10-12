@@ -1,5 +1,5 @@
 name = "advisor-terra"
-description = "Deprecated compatibility alias for the active Astra low-first advisor."
+description = "Supported compatibility alias for the active Astra low-first advisor."
 model = "gpt-6-astra"
 model_reasoning_effort = "low"
 sandbox_mode = "read-only"

@@ -1,8 +1,4 @@
-# Active Advisor execution policy. The model is intentionally not user-selectable.
-# Skill levels are low -> medium -> high -> extra_high; extra_high maps to xhigh.
-# Higher levels require a verified adjacent escalation and are not direct presets.
-# Plugin updates or reinstalling can replace this bundled policy.
-
+# Repo policy. Catalog entries do not prove live capability.
 [advisor]
 model = "gpt-6-astra"
 effort_ladder = ["low", "medium", "high", "xhigh"]

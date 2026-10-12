@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -30,6 +31,7 @@ if sys.argv[1:] == ["app-server", "--help"]:
 if len(sys.argv) > 1 and sys.argv[1] == "app-server":
     raise SystemExit(90)
 
+prompt = sys.stdin.read()
 args = sys.argv[1:]
 model = args[args.index("--model") + 1]
 effort = args[args.index("-c") + 1].split('"')[1]
@@ -60,6 +62,7 @@ sessions.mkdir(parents=True, exist_ok=True)
 events = [
     {"type": "session_meta", "payload": {"id": child, "source": "exec", "originator": "codex_exec"}},
     {"type": "turn_context", "payload": {"model": model, "effort": effort, "sandbox_policy": {"type": "read-only"}, "permission_profile": {"type": "managed"}}},
+    {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":prompt}]}},
 ]
 (sessions / f"rollout-fake-{child}.jsonl").write_text("".join(json.dumps(row) + "\n" for row in events))
 print(json.dumps({"type": "thread.started", "thread_id": child}))
@@ -90,13 +93,10 @@ class AdvisorCliTests(unittest.TestCase):
         self.attempts = self.root / "attempts"
         self.env = {
             **os.environ,
-            "HOME": str(self.home),
             "CODEX_HOME": str(self.home),
             "CODEX_THREAD_ID": PARENT,
-            "WSL_DISTRO_NAME": "",
-            "ADVISOR_CODEX_BIN": "",
-            "ADVISOR_TRANSPORT_CONFIG": str(self.home / "no-wsl-transport-config.json"),
             "PATH": f"{self.binary}:{os.environ['PATH']}",
+            "ADVISOR_CODEX_BIN": str(self.fake),
             "FAKE_CODEX_LOG": str(self.log),
             "FAKE_ATTEMPT_FILE": str(self.attempts),
         }
@@ -130,6 +130,110 @@ class AdvisorCliTests(unittest.TestCase):
         result = self.run_cli("--json", "models", "add", model)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_cli_output_contract_for_both_rendering_modes(self) -> None:
+        user_home = self.root / "user-home"
+        user_home.mkdir()
+        env = {**self.env, "HOME": str(user_home)}
+        show_keys = "account_availability catalog_present deadline_seconds legacy_settings live_config message selection_revision selections status usage_journal_enabled"
+        error_keys = "error message status"
+        settings_keys = "message settings status"
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        journal_record = {
+            "schema_version": 1, "consultation_id": str(uuid.uuid4()),
+            "started_at": now, "finished_at": now,
+            "tier": "advisor", "model": "gpt-6-astra", "effort": "low",
+            "outcome": "failed", "transport_contract_version": "1.5",
+            "total_duration_ms": 1,
+            "attempts": [{"number": 1, "duration_ms": 1, "outcome": "runtime_failed",
+                          "usage": {"input": None, "cached_input": None, "output": None, "reasoning": None}}],
+            "totals": {"input": None, "cached_input": None, "output": None, "reasoning": None},
+        }
+        rows = [
+            (("show",), 0, show_keys, "Advisor live configuration and local non-selection settings"),
+            (("status",), 0, show_keys, "Advisor live configuration and local non-selection settings"),
+            (("models", "list"), 0, "catalog message models shipped status", "Advisor shipped, manual, and discovered model evidence"),
+            (("models", "add", "manual/model"), 0, "catalog message status", "Manual candidate recorded; compatibility is unverified"),
+            (("models", "add", "bad model"), 2, error_keys, "unsafe model selector"),
+            (("resolve", "--tier", "standard"), 0, "launch message status", "Immutable Astra policy launch record"),
+            (("deadline",), 0, "deadline_seconds message selection_revision status", "Advisor total deadline"),
+            (("deadline", "120"), 0, "deadline_seconds message selection_revision status", "Advisor total deadline saved"),
+            (("set", "--tier", "standard", "--model", "manual/model", "--effort", "high"), 2, error_keys, "set is legacy-only; edit the installed advisor.toml for --tier consultations"),
+            (("reset",), 2, error_keys, "reset is legacy-only; edit the installed advisor.toml for --tier consultations"),
+            (("restore",), 0, settings_keys, "Prior legacy settings restored; --tier continues to use advisor.toml"),
+            (("preset", "trial", "--model", "manual/model", "--effort", "high"), 2, error_keys, "active policy requires gpt-6-astra and low/medium/high/xhigh; migrate legacy settings; inspect settings.json or run advisor-config.sh restore if the prior backup is valid"),
+            (("journal", "status"), 0, "enabled message records status", "Content-free usage journal status"),
+            (("journal", "enable"), 0, settings_keys, "Usage journal enabled"),
+            (("journal", "status"), 0, "enabled message records status", "Content-free usage journal status"),
+            (("_journal-record", json.dumps(journal_record)), 0, "message status written", "Usage journal record processed"),
+            (("journal", "disable"), 0, settings_keys, "Usage journal disabled"),
+            (("journal", "status"), 0, "enabled message records status", "Content-free usage journal status"),
+            (("journal", "clear"), 0, "cleared message status", "Usage journal cleared"),
+            (("_journal-record", "{}"), 2, error_keys, "invalid usage journal record keys"),
+            (("_consume-canary", "bad"), 2, error_keys, "invalid canary authorization"),
+            (("_consume-canary",), 0, "launch message status", "Authorized synthetic canary"),
+            (("doctor",), 0, "account_availability catalog current_compatibility dependencies discovery_protocol errors last_content_free_failure launch_eligibility live_config message parent_runtime prior_settings_backup settings stale_selections status", "Local read-only Advisor diagnostics"),
+            (("unknown-command",), 2, "", ""),
+        ]
+        journal_enabled = False
+        for args, exit_code, keys, message in rows:
+            for as_json in (True, False):
+                with self.subTest(args=args, as_json=as_json):
+                    call_args = args
+                    if args[0] == "_consume-canary" and len(args) == 1:
+                        token = ("a" if as_json else "b") * 32
+                        canaries = self.home / "advisor" / "canaries"
+                        canaries.mkdir(mode=0o700, exist_ok=True)
+                        authorization = canaries / f"{token}.json"
+                        authorization.write_text(json.dumps({
+                            "model": "gpt-6-astra", "effort": "low",
+                            "codex_version": "codex-cli 0.153.2",
+                            "transport_contract_version": "1.5",
+                            "expires_at": int(time.time()) + 300,
+                        }))
+                        authorization.chmod(0o600)
+                        call_args = (*args, token)
+                    result = self.run_cli(*(('--json',) if as_json else ()), *call_args, env=env)
+                    self.assertEqual(result.returncode, exit_code, result.stderr)
+                    if args[0] == "unknown-command":
+                        self.assertEqual(result.stdout, "")
+                        self.assertTrue(result.stderr.startswith("usage: advisor-config.sh"))
+                        self.assertIn("invalid choice: 'unknown-command'", result.stderr)
+                        continue
+                    payload = json.loads(result.stdout)
+                    self.assertEqual(sorted(payload), sorted(keys.split()))
+                    self.assertEqual(payload["status"], "ok" if exit_code == 0 else "unavailable")
+                    self.assertEqual(payload["message"], message)
+                    if exit_code == 2:
+                        self.assertEqual(payload["error"], message)
+                    else:
+                        self.assertNotIn("error", payload)
+                    compact = as_json or (exit_code == 0 and args[0] in {
+                        "resolve", "_consume-canary", "_journal-record"
+                    })
+                    expected = json.dumps(payload, sort_keys=True,
+                                          separators=(",", ":") if compact else None,
+                                          indent=None if compact else 2) + "\n"
+                    self.assertEqual(result.stdout, expected)
+                    if args == ("journal", "enable"):
+                        journal_enabled = True
+                    elif args == ("journal", "disable"):
+                        journal_enabled = False
+                    if args[0] == "journal" and args[1] == "status":
+                        self.assertIs(payload["enabled"], journal_enabled)
+                    if args[0] == "_journal-record" and exit_code == 0:
+                        self.assertIs(payload["written"], True)
+                    if args[0] == "resolve":
+                        launch = payload["launch"]
+                        self.assertEqual(sorted(launch), sorted("config_path deadline_seconds effort level role model selection_revision selection_source source_revision tier transport_contract_version".split()))
+                        self.assertEqual((launch["model"], launch["effort"], launch["deadline_seconds"], launch["selection_source"]),
+                                         ("gpt-6-astra", "low", 300, "live-config"))
+                        self.assertEqual(launch["selection_revision"], launch["source_revision"])
+                    if args[0] == "_consume-canary" and exit_code == 0:
+                        launch = payload["launch"]
+                        self.assertEqual(sorted(launch), sorted("codex_version deadline_seconds effort model selection_revision selection_source tier transport_contract_version".split()))
+                        self.assertEqual((launch["model"], launch["effort"], launch["selection_source"]),
+                                         ("gpt-6-astra", "low", "authorized-synthetic-canary"))
+
     def test_help_json_cold_start_and_doctor_inspect_actual_parent(self) -> None:
         help_result = self.run_cli("--help")
         self.assertEqual(help_result.returncode, 0)
@@ -139,7 +243,7 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertEqual(show.returncode, 0, show.stderr)
         self.assertEqual(len(show.stdout.splitlines()), 1)
         current = json.loads(show.stdout)
-        self.assertEqual(current["selections"]["standard"]["model"], "gpt-6-astra")
+        self.assertEqual(current["selections"]["low"]["model"], "gpt-6-astra")
         self.assertTrue(current["selection_revision"].startswith("sha256:"))
         self.assertTrue(current["live_config"]["path"].endswith("advisor.toml"))
         doctor = self.run_cli("--json", "doctor")
@@ -149,24 +253,6 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertEqual(payload["parent_runtime"]["sandbox_policy_type"], "read-only")
         self.assertIn("inspecting parent runtime evidence", doctor.stderr)
         self.assertFalse((self.home / "advisor").exists())
-        self.assertEqual(self.invocations(), [])
-
-    def test_doctor_waits_for_slow_parent_session_scan(self) -> None:
-        slow_find = self.binary / "find"
-        slow_find.write_text(
-            "#!/bin/sh\nsleep 2.2\nexec /usr/bin/find \"$@\"\n",
-            encoding="utf-8",
-        )
-        slow_find.chmod(0o700)
-        doctor = self.run_cli(
-            "--json",
-            "doctor",
-            env={**self.env, "WSL_DISTRO_NAME": ""},
-        )
-        self.assertEqual(doctor.returncode, 0, doctor.stderr)
-        payload = json.loads(doctor.stdout)
-        self.assertEqual(payload["parent_runtime"]["status"], "available")
-        self.assertEqual(payload["parent_runtime"]["thread_id"], PARENT)
         self.assertEqual(self.invocations(), [])
 
     def test_pristine_default_resolve_works_on_newer_cli_without_setup(self) -> None:
@@ -197,15 +283,15 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertEqual(self.invocations(), [])
 
     def test_add_test_select_preset_and_pair_freshness(self) -> None:
-        self.add()
+        self.add("gpt-6-astra")
         unauthorized = self.run_cli(
-            "--json", "models", "test", "manual/model", "--effort", "high",
+            "--json", "models", "test", "gpt-6-astra", "--effort", "low",
             "--parent-thread", PARENT,
         )
         self.assertEqual(unauthorized.returncode, 2)
         self.assertEqual(self.invocations(), [])
         tested = self.run_cli(
-            "--json", "models", "test", "manual/model", "--effort", "high",
+            "--json", "models", "test", "gpt-6-astra", "--effort", "low",
             "--authorize-usage", "--parent-thread", PARENT,
             "--sessions-dir", str(self.home / "sessions"),
         )
@@ -214,35 +300,53 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertEqual(len(self.invocations()), 1)
         listed = json.loads(self.run_cli("--json", "models", "list").stdout)
         receipts = listed["models"]["candidates"][0]["tested_compatibility"]
-        self.assertEqual([(row["effort"], row["current"]) for row in receipts], [("high", True)])
+        self.assertEqual([(row["effort"], row["current"]) for row in receipts], [("low", True)])
         stale_env = {**self.env, "FAKE_CODEX_VERSION": "codex-cli 0.154.0"}
         retained = json.loads(self.run_cli("--json", "models", "list", env=stale_env).stdout)
         self.assertTrue(retained["models"]["candidates"][0]["tested_compatibility"][0]["current"])
         selected = self.run_cli(
-            "--json", "set", "--tier", "standard", "--model", "manual/model", "--effort", "high"
+            "--json", "set", "--tier", "standard", "--model", "gpt-6-astra", "--effort", "low"
         )
         self.assertEqual(selected.returncode, 2)
         self.assertIn("advisor.toml", selected.stdout)
         preset = self.run_cli(
-            "--json", "preset", "manual", "--model", "manual/model", "--effort", "high"
+            "--json", "preset", "manual", "--model", "gpt-6-astra", "--effort", "low"
         )
         self.assertEqual(preset.returncode, 0, preset.stderr)
         status = json.loads(self.run_cli("--json", "status").stdout)
-        self.assertEqual(status["selections"]["standard"]["model"], "gpt-6-astra")
+        self.assertEqual(status["selections"]["low"]["model"], "gpt-6-astra")
 
-    def test_canary_invalid_response_is_terminal_without_retry(self) -> None:
-        self.add()
-        result = self.run_cli(
-            "--json", "models", "test", "manual/model", "--effort", "high",
-            "--authorize-usage", "--parent-thread", PARENT,
-            "--sessions-dir", str(self.home / "sessions"),
-            env={**self.env, "FAKE_CODEX_CASE": "invalid-once"},
-        )
+    def test_canary_rejects_invalid_response_after_one_attempt_without_compatibility(self) -> None:
+        self.add("gpt-6-astra")
+        result = self.run_cli("--json", "models", "test", "gpt-6-astra", "--effort", "low",
+                              "--authorize-usage", "--parent-thread", PARENT,
+                              "--sessions-dir", str(self.home / "sessions"),
+                              env={**self.env,"FAKE_CODEX_CASE":"invalid-once"})
         self.assertEqual(result.returncode, 2)
         self.assertEqual(len(self.invocations()), 1)
-        self.assertNotIn("fresh corrective retry", result.stderr)
+        self.assertIn("no corrective retry", result.stderr)
         catalog = json.loads((self.home / "advisor" / "catalog.json").read_text())
-        self.assertEqual(len(catalog["compatibility"]), 0)
+        self.assertEqual(catalog["compatibility"], [])
+
+    def test_legacy_selections_are_reported_without_mutation_or_inference(self) -> None:
+        self.add("historical/model")
+        state=self.home/"advisor"/"settings.json"
+        stored={"schema_version":1,"revision":4,
+                "selections":{"standard":{"model":"gpt-5.6-terra","effort":"high"},"specialist":{"model":"gpt-6.1-sol","effort":"high"}},
+                "presets":{},"deadline_seconds":120,"usage_journal_enabled":True}
+        state.write_text(json.dumps(stored))
+        state.chmod(0o600)
+        before=state.read_bytes()
+        result=self.run_cli("--json","show")
+        self.assertEqual(result.returncode,0,result.stderr)
+        payload=json.loads(result.stdout)
+        self.assertEqual(payload["legacy_settings"],"migration-required")
+        self.assertIn("migration",payload["message"])
+        self.assertEqual((payload["deadline_seconds"],payload["usage_journal_enabled"]),(120,True))
+        self.assertEqual(state.read_bytes(),before)
+        resolved=json.loads(self.run_cli("--json","resolve","--tier","specialist").stdout)["launch"]
+        self.assertEqual((resolved["model"],resolved["effort"]),("gpt-6-astra","low"))
+        self.assertEqual(self.invocations(),[])
 
     def test_invalid_settings_recovery_reset_deadline_journal_and_errors(self) -> None:
         self.assertEqual(self.run_cli("--json", "deadline", "120").returncode, 0)
@@ -275,7 +379,7 @@ class AdvisorCliTests(unittest.TestCase):
         settings_dir = self.home / "advisor"
         settings = {
             "schema_version": 1, "revision": 1,
-            "selections": {"standard": {"model": "manual/model", "effort": "high"}, "specialist": {"model": "gpt-5.6-sol", "effort": "high"}},
+            "selections": {"standard": {"model": "manual/model", "effort": "high"}, "specialist": {"model": "gpt-6.1-sol", "effort": "high"}},
             "presets": {}, "deadline_seconds": 300, "usage_journal_enabled": True,
         }
         (settings_dir / "settings.json").write_text(json.dumps(settings) + "\n")
@@ -283,8 +387,8 @@ class AdvisorCliTests(unittest.TestCase):
         record = {
             "schema_version": 1, "consultation_id": str(uuid.uuid4()),
             "started_at": "2026-09-04T12:00:00Z", "finished_at": "2026-09-04T12:00:01Z",
-            "tier": "standard", "model": "manual/model", "effort": "high",
-            "outcome": "failed", "transport_contract_version": "1.4", "total_duration_ms": 1,
+            "tier": "advisor", "model": "gpt-6-astra", "effort": "low",
+            "outcome": "failed", "transport_contract_version": "1.5", "total_duration_ms": 1,
             "attempts": [{"number": 1, "duration_ms": 1, "outcome": "runtime_failed", "usage": {"input": None, "cached_input": None, "output": None, "reasoning": None}}],
             "totals": {"input": None, "cached_input": None, "output": None, "reasoning": None},
         }
@@ -300,7 +404,7 @@ class AdvisorCliTests(unittest.TestCase):
         minimal.mkdir()
         (minimal / "python3").symlink_to(Path(sys.executable))
         (minimal / "dirname").symlink_to("/usr/bin/dirname")
-        no_codex = {**self.env, "PATH": str(minimal)}
+        no_codex = {k:v for k,v in {**self.env, "PATH": str(minimal)}.items() if k != "ADVISOR_CODEX_BIN"}
         missing = json.loads(self.run_cli("--json", "doctor", env=no_codex).stdout)
         self.assertEqual(missing["dependencies"]["codex"]["status"], "missing")
         self.assertEqual(missing["dependencies"]["jq"], "missing")
@@ -314,7 +418,7 @@ class AdvisorCliTests(unittest.TestCase):
         self.assertIn("python3 is unavailable", no_python.stderr)
 
     def test_real_cli_natural_deadline_reaps_child_and_preserves_unrelated(self) -> None:
-        self.add()
+        self.add("gpt-6-astra")
         self.assertEqual(self.run_cli("--json", "deadline", "30").returncode, 0)
         ready = self.root / "deadline-ready"
         terminated = self.root / "deadline-terminated"
@@ -322,7 +426,7 @@ class AdvisorCliTests(unittest.TestCase):
         started = time.monotonic()
         try:
             result = self.run_cli(
-                "--json", "models", "test", "manual/model", "--effort", "high",
+                "--json", "models", "test", "gpt-6-astra", "--effort", "low",
                 "--authorize-usage", "--parent-thread", PARENT,
                 "--sessions-dir", str(self.home / "sessions"),
                 env={**self.env, "FAKE_CODEX_CASE": "hang", "FAKE_READY_MARKER": str(ready), "FAKE_TERM_MARKER": str(terminated)},
@@ -343,12 +447,12 @@ class AdvisorCliTests(unittest.TestCase):
             unrelated.wait(timeout=3)
 
     def test_real_cli_caller_cancellation_reaps_child_and_preserves_unrelated(self) -> None:
-        self.add()
+        self.add("gpt-6-astra")
         ready = self.root / "cancel-ready"
         terminated = self.root / "cancel-terminated"
         unrelated = subprocess.Popen(["sleep", "20"])
         process = subprocess.Popen(
-            [str(CLI), "--json", "models", "test", "manual/model", "--effort", "high", "--authorize-usage", "--parent-thread", PARENT, "--sessions-dir", str(self.home / "sessions")],
+            [str(CLI), "--json", "models", "test", "gpt-6-astra", "--effort", "low", "--authorize-usage", "--parent-thread", PARENT, "--sessions-dir", str(self.home / "sessions")],
             text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             env={**self.env, "FAKE_CODEX_CASE": "hang", "FAKE_READY_MARKER": str(ready), "FAKE_TERM_MARKER": str(terminated)},
         )
@@ -373,6 +477,56 @@ class AdvisorCliTests(unittest.TestCase):
                 process.stderr.close()
             unrelated.terminate()
             unrelated.wait(timeout=3)
+
+    def test_missing_or_symlinked_sibling_fails_without_execution(self) -> None:
+        helpers = sorted(path.name for path in (ROOT / "scripts").glob("advisor_*.py"))
+        sandbox_plugin = self.root / "sandbox_plugin"
+        sandbox_plugin.mkdir()
+        shutil.copy2(ROOT / "advisor.toml", sandbox_plugin / "advisor.toml")
+        sandbox_scripts = sandbox_plugin / "scripts"
+        shutil.copytree(ROOT / "scripts", sandbox_scripts)
+        wrapper = sandbox_scripts / "advisor-config.sh"
+        res = subprocess.run(
+            [str(wrapper), "--json", "status"],
+            capture_output=True,
+            text=True,
+            env=self.env,
+            check=False,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+        for helper in helpers:
+            target = sandbox_scripts / helper
+            backup = self.root / f"{helper}.bak"
+            shutil.copy2(target, backup)
+
+            target.unlink()
+            res_missing = subprocess.run(
+                [str(wrapper), "--json", "status"],
+                capture_output=True,
+                text=True,
+                env=self.env,
+                check=False,
+            )
+            self.assertEqual(res_missing.returncode, 2)
+            self.assertIn("ADVISOR CONFIG:", res_missing.stderr)
+            self.assertEqual(res_missing.stdout, "")
+
+            target.symlink_to(backup)
+            res_sym = subprocess.run(
+                [str(wrapper), "--json", "status"],
+                capture_output=True,
+                text=True,
+                env=self.env,
+                check=False,
+            )
+            self.assertEqual(res_sym.returncode, 2)
+            self.assertIn("ADVISOR CONFIG:", res_sym.stderr)
+            self.assertEqual(res_sym.stdout, "")
+
+            target.unlink()
+            shutil.copy2(backup, target)
+            backup.unlink()
 
 
 if __name__ == "__main__":

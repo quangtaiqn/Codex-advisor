@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>Terms of Service — Codex Advisor</title>
 <meta name="description" content="Terms of service for the Codex Advisor plugin, distributed under the MIT License.">
-<meta name="advisor-release" content="1.4.5">
+<meta name="advisor-release" content="1.4.9-astra.1">
 <link rel="canonical" href="https://zerodelta.dev/advisor/terms/">
 <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/style.css">
@@ -74,8 +74,8 @@
 <section aria-labelledby="responsibilities">
     <h2 id="responsibilities">4. Prerequisites and your responsibilities</h2>
     <ul>
-        <li><strong>Host prerequisites.</strong> You are solely responsible for providing and maintaining the required local host prerequisites, including a supported host (Codex CLI or Codex desktop), a POSIX shell, <code>jq</code>, and the appropriate execution permissions.</li>
-        <li><strong>Model availability.</strong> Execution uses the fixed Astra model and ordered effort ladder configured in the bundled <code>advisor.toml</code>: low, medium, high, then extra_high (runtime <code>xhigh</code>) after verified adjacent escalation. Legacy model names are diagnostic compatibility aliases only. You are responsible for model availability, all OpenAI usage, quotas, and fees on your account.</li>
+        <li><strong>Host prerequisites.</strong> You are solely responsible for providing and maintaining the required local host prerequisites, including a supported host (Codex CLI or Codex desktop), Python 3.11 or newer, a POSIX shell, <code>jq</code>, and the appropriate execution permissions.</li>
+        <li><strong>Model availability.</strong> Execution uses the fixed Astra policy in the bundled <code>advisor.toml</code>. Standard and Specialist both start Astra/low for qualified unresolved material decisions. The supported <code>advisor-terra</code>, <code>advisor-sol</code> and <code>advisor-astra</code> wrapper aliases all start Astra/low. Primary-authorized adjacent escalation ends at terminal xhigh, with one attempt per level and no corrective retry. You are responsible for model availability, all OpenAI usage, quotas, and fees on your account.</li>
         <li><strong>Configuration changes.</strong> You may edit the bundled configuration in place, but a plugin update or reinstall may replace those edits.</li>
         <li><strong>Data protection.</strong> You are responsible for ensuring that credentials, confidential keys, and unauthorized proprietary data are not included in consultation packets.</li>
     </ul>

@@ -1,23 +1,29 @@
 {
   "schema_version": 1,
-  "transport_contract_version": "1.4",
+  "transport_contract_version": "1.5",
   "tested_codex_cli": "codex-cli 0.153.2",
   "defaults": {
-    "standard": { "model": "gpt-6-astra", "effort": "low" },
-    "specialist": { "model": "gpt-6-astra", "effort": "low" }
+    "standard": {
+      "model": "gpt-6-astra",
+      "effort": "low"
+    },
+    "specialist": {
+      "model": "gpt-6-astra",
+      "effort": "low"
+    }
   },
   "models": [
     {
       "id": "terra",
       "model": "gpt-5.6-terra",
-      "display_name": "Terra (diagnostic history)",
+      "display_name": "Terra",
       "tiers": [],
       "compatibility_baseline": null
     },
     {
       "id": "sol",
-      "model": "gpt-5.6-sol",
-      "display_name": "Sol (diagnostic history)",
+      "model": "gpt-6.1-sol",
+      "display_name": "Sol",
       "tiers": [],
       "compatibility_baseline": null
     },
@@ -25,10 +31,18 @@
       "id": "astra",
       "model": "gpt-6-astra",
       "display_name": "Astra",
-      "tiers": ["standard", "specialist"],
+      "tiers": [
+        "standard",
+        "specialist"
+      ],
       "compatibility_baseline": {
-        "efforts": ["low", "medium", "high", "xhigh"],
-        "transport_contract_version": "1.4"
+        "efforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "transport_contract_version": "1.5"
       }
     }
   ]

@@ -1,3 +1,11 @@
+# Phase-A candidate walkthrough
+
+Current candidate: 1.4.9-astra.1. Use [merge-stage-a.md](merge-stage-a.md) for current scope and external handoff evidence. No attended/live runtime inference, desktop activation or installed bridge end-to-end was run. Mocked/synthetic checks do not replace those observations.
+
+## Historical 1.3.4 acceptance record
+
+The material below is history and does not describe the current 1.4.5 active routing contract or this Astra merge candidate. It must not be cited as current readiness.
+
 # Candidate fresh-host walkthrough
 
 ## Clean host
@@ -90,14 +98,7 @@ edit those values to make a check pass. The captured receipt redacts thread iden
 and stores only `agent_role`, `transport`, `model`, `effort`,
 `sandbox_policy_type`, and `permission_profile_type`.
 
-## Historical 1.3.4 acceptance record (frozen; not current 1.4.5)
-
-The following record is retained as historical evidence for the 1.3.4 candidate.
-It does not describe the current 1.4.5 active routing contract: current routing is
-Astra low-first with adjacent escalation, typed response escalation, and no
-same-level corrective retry. Do not use the legacy model or schema details below as
-current clean-host acceptance criteria; use the current package verifier and
-`docs/public-listing.md` instead.
+## Candidate-current acceptance record (2026-09-03)
 
 ### Candidate and published versions
 
@@ -118,10 +119,14 @@ credentials into the fresh root.
 ### Eligible consultation
 
 One eligible consultation then completed in a new fresh-root Codex session. Its
-captured allowlisted runtime receipt identifies `advisor-terra` with `gpt-5.6-terra` or
-`advisor-sol` with `gpt-5.6-sol`, `codex-exec` transport, high effort, a read-only
-sandbox, and a managed permission profile. The receipt is runtime evidence only:
-it intentionally does not preserve conversation content or session identifiers.
+captured allowlisted runtime receipt identified `advisor-terra` with `gpt-5.6-terra` or
+`advisor-sol` with the then-current GPT-5.6 Sol model, `codex-exec` transport, high effort,
+a read-only sandbox, and a managed permission profile. The receipt is historical
+runtime evidence only: it intentionally does not preserve conversation content or
+session identifiers. For the 1.4.7 local candidate, the expected `advisor-sol`
+runtime model is `gpt-6.1-sol`; a fresh live consultation with this model is not
+claimed here. The `tested_codex_cli` value records historical transport provenance,
+not model-specific inference validation.
 
 ### Structured-response acceptance
 

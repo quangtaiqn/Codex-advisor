@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>Support &amp; Troubleshooting — Codex Advisor</title>
 <meta name="description" content="Support channels, prerequisites checklist, and troubleshooting guide for the Codex Advisor plugin.">
-<meta name="advisor-release" content="1.4.5">
+<meta name="advisor-release" content="1.4.9-astra.1">
 <link rel="canonical" href="https://zerodelta.dev/advisor/support/">
 <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/style.css">
@@ -53,7 +53,8 @@
 
 <section aria-labelledby="configuration">
     <h2 id="configuration">3. Configure models</h2>
-    <p>Find <code>advisor.toml</code> in the installed plugin root. The plugin root is two directories above the directory containing <code>skills/consultation/SKILL.md</code>. The active policy is a fixed Astra ladder: <code>low → medium → high → extra_high</code>, with <code>extra_high</code> mapped to runtime <code>xhigh</code>. Legacy role names are aliases only. Invalid TOML, unsupported levels, or missing escalation evidence produce an explicit error; Advisor does not silently fall back. An update or reinstall may replace the bundled file. There is no GUI settings screen in the normal flow.</p>
+    <p>Find <code>advisor.toml</code> in the installed plugin root. The plugin root is two directories above the directory containing <code>skills/consultation/SKILL.md</code>. Inspect that bundled file in place; do not copy it and do not use repository commands. The fixed <code>[advisor]</code> policy is shared by Standard and Specialist. A plugin update or reinstall may replace edits; legacy two-tier selections require migration and cannot override the active policy.</p>
+    <p>Standard and Specialist both start Astra/low. All three supported roles start gpt-6-astra/low; primary-authorized adjacent escalation ends at terminal xhigh, with one attempt per level and no model fallback.</p>
 </section>
 
 <section aria-labelledby="scope">
@@ -77,6 +78,7 @@
     <ol>
         <li>Codex CLI or Codex desktop is installed and operational.</li>
         <li><code>jq</code> is installed and on your <code>$PATH</code> — check with <code>which jq</code>.</li>
+        <li><code>python3</code> is Python 3.11 or newer — the launcher uses the standard-library <code>tomllib</code> module and reports <code>ADVISOR TRANSPORT: unavailable</code> on older versions.</li>
         <li>You have a <code>/bin/sh</code>-compliant POSIX shell.</li>
         <li>An active persisted Codex session rollout exists in your Codex home directory.</li>
         <li><code>CODEX_THREAD_ID</code> is set in the active parent execution context.</li>
@@ -98,17 +100,16 @@ route: unavailable</code></pre>
     <h3>B. Model availability or authorization failure</h3>
     <p><strong>Symptom.</strong> The consultation launcher reports a failure or an unexpected model response.</p>
     <p><strong>Cause.</strong> The configured model is unavailable or unauthorized for your authenticated Codex/OpenAI account.</p>
-    <p><strong>Remedies.</strong> Check the fixed <code>model</code> and <code>effort_ladder</code> in the installed <code>advisor.toml</code>, verify account access and usage availability, and reconcile any pending checkpoint state. An unsupported model or invalid TOML reports an error; there is no silent fallback.</p>
-    <p><code>advisor-astra</code> is the active route; the legacy Standard/Specialist names and <code>advisor-terra</code>/<code>advisor-sol</code> aliases cannot select another model.</p>
+    <p><strong>Remedies.</strong> Check the <code>model</code> and <code>effort_ladder</code> values in the installed <code>advisor.toml</code>, verify account access and usage availability, and correct the file in place. Invalid TOML and unsupported-model settings report an error; the launcher does not silently fall back.</p>
+    <p>Standard, Specialist, <code>advisor-terra</code>, <code>advisor-sol</code> and <code>advisor-astra</code> are supported initial Astra/low wrapper aliases. Higher effort requires an accepted adjacent escalation request and primary authorization. Durable checkpoint/replay/resume is deferred.</p>
 
-    <h3>C. Response validation stops the pass</h3>
-    <p><strong>Symptom.</strong> Stderr reports a response-validation failure.</p>
-    <p><strong>Behavior.</strong> This is fail-closed by design. The reserved level is consumed, the rejected content is redacted, and the plugin records <code>recommendation: unavailable</code> and <code>decision: blocked</code>. It does not launch a corrective retry or silently select another model/effort.</p>
-
+    <h3>C. Response rejected</h3>
+    <p><strong>Symptom.</strong> A response fails schema or semantic validation.</p>
+    <p><strong>Behavior.</strong> Each level has one attempt and no corrective retry. A malformed response, packet, launcher, identity, provenance, runtime, wrong-model, wrong-effort, or tool-use failure records <code>recommendation: unavailable</code> and <code>decision: blocked</code> and stops. Higher effort cannot repair a transport failure. Escalate only when an accepted response requests the adjacent level and the primary confirms material uncertainty remains.</p>
     <h3>D. Deferred handoff returns no receipt</h3>
     <p><strong>Symptom.</strong> A long consultation appears to launch, but the enclosing call reports no validated result.</p>
     <p><strong>Behavior.</strong> A nonterminal shell <code>session_id</code> is progress, not a receipt. The caller drains that exact session with <code>write_stdin</code>, accumulates its output, requires terminal exit, and validates exactly one schema-v3 envelope before returning it. An outer wait or heartbeat is not terminal evidence.</p>
-    <p><strong>Recovery.</strong> Install an available update from the official OpenAI Plugins Directory, then start a new Codex thread and repeat the explicit request. A new attempt begins at Astra low only after the checkpoint ledger is reconciled; it does not replay a consumed level or add model fallback.</p>
+    <p><strong>Recovery.</strong> Install an available update from the official OpenAI Plugins Directory, then start a new Codex thread and repeat the explicit request. This repair does not add model fallback; all supported aliases retain the fixed Astra/low initial routing and adjacent escalation rules.</p>
 </section>
 
 <section aria-labelledby="diagnostics">
@@ -128,6 +129,12 @@ route: unavailable</code></pre>
     <div class="callout">
         <p>Redact secrets and proprietary context before sending. Receipts are written into your conversation, so check what you are pasting.</p>
     </div>
+</section>
+
+<section aria-labelledby="private">
+    <h2 id="private">9. Private support and privacy contact</h2>
+    <p>GitHub issues remain the public channel and stay searchable for everyone. For anything you would rather not file publicly — including privacy requests — email <a href="mailto:advisor@zerodelta.dev">advisor@zerodelta.dev</a>. Both channels are voluntary and user-initiated; how public GitHub issues and private email are handled — what they share, their recipients, retention, and deletion — is described in the <a href="../privacy/">privacy policy</a>.</p>
+    <p>Include only minimal redacted diagnostics: the relevant <code>ADVISOR DECISION</code>, <code>ADVISOR CALL</code>, or <code>ADVISOR RESULT</code> receipt with secrets, credentials, and proprietary context removed. Do not send secrets or raw session logs. Advisor never contacts support automatically and sends nothing on its own; contacting Zero Delta is always your choice.</p>
 </section>
 
 </div>

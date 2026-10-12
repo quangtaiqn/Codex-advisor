@@ -44,7 +44,16 @@ class UploadReadinessTests(unittest.TestCase):
     def _make_fixture(self) -> None:
         plugin = self.repo / "plugins/advisor/.codex-plugin/plugin.json"
         plugin.parent.mkdir(parents=True)
-        plugin.write_text(json.dumps({"name": "advisor", "version": "9.9.9"}), encoding="utf-8")
+        plugin.write_text(json.dumps({
+            "name": "advisor",
+            "version": "9.9.9",
+            "interface": {
+                "supportURL": "https://zerodelta.dev/advisor/support/",
+                "category": "Developer Tools",
+                "shortDescription": "Useful read-only advice.",
+                "longDescription": "Detailed, publishable information for users.",
+            },
+        }), encoding="utf-8")
         payload = self.repo / "plugins/advisor/skills/consultation/SKILL.md"
         payload.parent.mkdir(parents=True)
         payload.write_text("# test\n", encoding="utf-8")
@@ -70,8 +79,20 @@ Detailed, publishable information for users.
         self._git("init")
         self._git("add", ".")
 
+    def _add_notice_copies(self) -> None:
+        for name in ("LICENSE", "NOTICE.md"):
+            root = self.repo / name
+            root.write_text(f"Advisor {name} fixture notice.\n", encoding="utf-8")
+            plugin = self.repo / "plugins/advisor" / name
+            plugin.write_bytes(root.read_bytes())
+        self._git("add", "LICENSE", "NOTICE.md", "plugins/advisor/LICENSE", "plugins/advisor/NOTICE.md")
+
     def _fetch(self, url: str) -> upload_readiness.FetchResponse:
         return upload_readiness.FetchResponse(url, 200, self.live[url])
+
+    def _rebuild_archive(self) -> None:
+        inventory = candidate_inventory.collect_inventory(self.repo)
+        candidate_inventory.write_archive(inventory, self.archive)
 
     def _verify(self) -> dict[str, object]:
         return upload_readiness.verify_upload_ready(self.repo, self.archive, self._fetch)
@@ -157,6 +178,39 @@ Detailed, publishable information for users.
                 listing.write_text(value, encoding="utf-8")
                 self._assert_not_ready()
         listing.write_text(original, encoding="utf-8")
+
+    def test_manifest_interface_drift_is_not_ready(self) -> None:
+        manifest = self.repo / "plugins/advisor/.codex-plugin/plugin.json"
+        original = manifest.read_text(encoding="utf-8")
+        document = json.loads(original)
+        interface = document["interface"]
+        variants = (
+            {"name": "advisor", "version": "9.9.9"},
+            {**document, "interface": {key: value for key, value in interface.items() if key != "supportURL"}},
+            {**document, "interface": {**interface, "supportURL": "https://zerodelta.dev/advisor/help/"}},
+            {**document, "interface": {**interface, "category": "Productivity"}},
+            {**document, "interface": {**interface, "shortDescription": "Drifted short copy."}},
+            {**document, "interface": {**interface, "longDescription": "Drifted long copy."}},
+        )
+        for variant in variants:
+            with self.subTest(variant=variant):
+                manifest.write_text(json.dumps(variant), encoding="utf-8")
+                self._rebuild_archive()
+                self._assert_not_ready()
+                manifest.write_text(original, encoding="utf-8")
+                self._rebuild_archive()
+
+    def test_plugin_notice_copy_absence_or_mismatch_is_not_ready(self) -> None:
+        self._add_notice_copies()
+        self._rebuild_archive()
+        self._verify()
+        notice = self.repo / "plugins/advisor/NOTICE.md"
+        original = notice.read_bytes()
+        notice.write_bytes(original + b"tampered\n")
+        self._assert_not_ready()
+        notice.write_bytes(original)
+        (self.repo / "plugins/advisor/LICENSE").unlink()
+        self._assert_not_ready()
 
     def test_changed_archive_or_site_bytes_are_not_ready(self) -> None:
         original = self.archive.read_bytes()

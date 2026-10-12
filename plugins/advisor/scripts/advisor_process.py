@@ -278,7 +278,7 @@ def capture_stdin(path: str, *, deadline_at: float) -> int:
         raise ProcessUnavailable("cannot create packet capture") from exc
     total = 0
     input_is_regular = stat.S_ISREG(os.fstat(sys.stdin.fileno()).st_mode)
-    selector = selectors.DefaultSelector()
+    selector = selectors.PollSelector()
     if not input_is_regular:
         selector.register(sys.stdin.buffer, selectors.EVENT_READ)
     next_heartbeat = time.monotonic() + HEARTBEAT_SECONDS

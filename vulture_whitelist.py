@@ -1,0 +1,17 @@
+# Vulture whitelist: every entry names its dynamic caller or the test that is its only caller.
+# Any new entries added to this whitelist need a one-line justification.
+
+# Legacy saved-state stack: no production caller, exercised by plugins/advisor/tests/test_advisor_config.py.
+save_settings  # advisor_settings.py: test_advisor_config.py (revision-conflict and settings-fixture tests)
+
+# Standard-library attribute writes and subclass hooks in public-release tooling.
+_.create_system  # candidate_inventory.py: zipfile.ZipInfo attribute assignment for reproducible ZIPs
+_.compress_type  # candidate_inventory.py: zipfile.ZipInfo attribute assignment
+_.handle_starttag  # upload_readiness.py: html.parser.HTMLParser hook invoked by feed()
+_.redirect_request  # upload_readiness.py: urllib.request.HTTPRedirectHandler hook
+fp  # redirect_request parameter required by the urllib signature
+msg  # redirect_request parameter required by the urllib signature
+newurl  # redirect_request parameter required by the urllib signature
+
+# Production dynamic caller embedded in advisor-audit.sh:90-91; exercised by real accounting CLI tests.
+accounting_report  # advisor_accounting.py: advisor-audit.sh accounting dispatcher

@@ -1,3 +1,7 @@
+# Historical walkthrough — local 5c2e736
+
+This is a historical source/receipt record. Its active-ledger and test names are not current phase-A instructions or candidate proof. See [merge-stage-a.md](merge-stage-a.md) and the external handoff for the current candidate; checkpoint/replay/resume is deferred to B.
+
 # Advisor 1.4.4 candidate walkthrough
 
 Date: 2026-09-13. This is a local candidate walkthrough, not publication or owner
