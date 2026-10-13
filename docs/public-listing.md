@@ -10,7 +10,7 @@ Codex Advisor is a skills-only plugin that provides disciplined, read-only secon
 | --- | --- |
 | **Plugin Name** | `advisor` |
 | **Display Name** | Codex Advisor |
-| **Version** | `1.4.9-astra.1` |
+| **Version** | `1.4.9-astra.2` |
 | **Category** | Developer Tools |
 | **Capabilities** | Interactive, Read |
 | **Author / Maintainer** | David Schmidt / Zero Delta LLC |
@@ -24,7 +24,7 @@ Codex Advisor is a skills-only plugin that provides disciplined, read-only secon
 | **Geographic Availability** | United States |
 | **Pricing Model** | Free / Open Source (MIT); requires user's own Codex model access |
 
-**Candidate status:** `1.4.9-astra.1` is a repository-only Astra merge candidate, not an upstream release or a deployed/installed plugin. It retains the fork's license/notice copies, Developer Tools category, supportURL, privacy and voluntary-support disclosures. All supported entrypoints start Astra/low; only verified adjacent escalation is allowed, with one attempt per level. Live runtime, desktop activation, and installed bridge end-to-end are UNVERIFIED. Publication and live byte parity remain pending; no historical receipt verifies this candidate.
+**Candidate status:** `1.4.9-astra.2` is a repository-only Astra merge candidate, not an upstream release or a deployed/installed plugin. It retains the fork's license/notice copies, Developer Tools category, supportURL, privacy and voluntary-support disclosures. All supported entrypoints start Astra/low; only verified adjacent escalation is allowed, with one attempt per level. Live runtime, desktop activation, and installed bridge end-to-end are UNVERIFIED. Publication and live byte parity remain pending; no historical receipt verifies this candidate.
 
 **Historical website deployment status (1.4.7 snapshot):** The landing, support,
 privacy, and terms pages were deployed on 1 October 2026 for Advisor 1.4.7, and
@@ -61,7 +61,7 @@ Codex Advisor helps software developers review architecture, API interfaces, dat
 
 Advisor sends bounded technical context to OpenAI for inference through your authenticated account and allowance; Zero Delta runs no relay or telemetry backend and does not automatically receive consultation packets or responses. Redacted receipts you voluntarily share through support channels are covered by the privacy policy. The consultation child is launched in a read-only sandbox and instructed to use zero tools; after execution the launcher inspects the recorded runtime and rejects the result if it observes any tool call, which is a post-execution acceptance check, not preventive tool-free isolation. The local launcher writes temporary files and Codex session records. The root agent owns implementation and final decisions; Advisor does not implement, deploy, or perform final review.
 
-Requires Python 3.11+, a local Codex host, jq, a supported POSIX shell, and a persisted session. Standard, Specialist, advisor-terra, advisor-sol, and advisor-astra all start at gpt-6-astra/low. The primary may authorize only an adjacent low → medium → high → extra_high escalation after a verified response requests it; extra_high uses runtime xhigh and is terminal. Each level has one attempt and no corrective retry. Sufficient advice stops the chain. Durable checkpoint, crash-resume, and cross-session replay enforcement are deferred; this candidate is not live-runtime verified.
+Requires Python 3.11+, a local Codex host, jq, a supported POSIX shell, a persisted session and a provisioned private Linux ledger. Standard, Specialist, advisor-terra, advisor-sol, and advisor-astra all start at gpt-6-astra/low. The primary may authorize only an adjacent low → medium → high → extra_high escalation after a verified response requests it; extra_high uses runtime xhigh and is terminal. Each level has one attempt and no corrective retry. Sufficient advice stops the chain. Durable reservation and canonical-packet/receipt replay protection apply within the trusted owner/project namespace; proof-based reconcile never spawns a replacement. This candidate is not live-runtime verified.
 
 ## Surface and Host Compatibility
 
@@ -129,7 +129,7 @@ Execution uses the user's authenticated Codex account. Normal tier consultations
 - Astra uses more of the user's Codex allowance and remains subject to account and runtime availability.
 - Editing the installed file applies to the next consultation, with independent effort settings. Invalid TOML and unsupported models report errors without silent fallback.
 - No setup conversation or separate compatibility test is required, and plugin updates may replace bundled configuration edits.
-- Deferred shell handoffs remain drained to terminal exit; exactly one schema-v3 envelope is required before the enclosing call returns a receipt. There is no model fallback.
+- Deferred shell handoffs remain drained to terminal exit; exactly one schema-v4 envelope is required before the enclosing call returns a receipt. There is no model fallback.
 - Consultations send bounded packets through the user's authenticated Codex/OpenAI account; Zero Delta operates no relay or hosted backend.
 - The optional content-free usage journal is off by default, stores operational metadata and aggregate counters only, prunes entries older than 30 days during later writes, and enforces a bounded count without a background deletion service.
 

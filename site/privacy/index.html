@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>Privacy Policy — Codex Advisor</title>
 <meta name="description" content="Privacy policy for Codex Advisor: data categories, purposes, recipients, retention, and controls for consultations, local state, support email, public GitHub issues, and this website.">
-<meta name="advisor-release" content="1.4.9-astra.1">
+<meta name="advisor-release" content="1.4.9-astra.2">
 <link rel="canonical" href="https://zerodelta.dev/advisor/privacy/">
 <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/style.css">
@@ -96,6 +96,7 @@
 
 <section aria-labelledby="control">
     <h2 id="control">8. User control and data deletion</h2>
+    <p>The B candidate also maintains a private local ledger containing issue and project identities, canonical packet digests, policy and receipt digests, execution IDs and bounded runtime/process metadata. It stores no plaintext packet or raw session. Consumed identity tombstones persist when optional detail is pruned; removing them would invalidate replay protection. The ledger is not sent automatically to Zero Delta and does not replace the optional usage journal.</p>
     <p>You can inspect, modify, archive, or delete local user state with standard operating system tools: Codex session logs, configuration and catalog files, and the optional journal (via <code>journal clear</code> and <code>journal disable</code>). For data held by OpenAI, use the controls of your OpenAI account. Uninstalling the plugin may leave user state and session logs behind; those are managed separately and can be removed by you.</p>
 </section>
 

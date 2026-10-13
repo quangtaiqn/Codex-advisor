@@ -203,7 +203,7 @@ class AdvisorSetupTests(AdvisorTransportTestCase):
             stdout, stderr = process.communicate(timeout=5)
             self.assertEqual(process.returncode, 130)
             envelope = json.loads(stdout)
-            self.assertEqual(envelope["schema_version"], 3)
+            self.assertEqual(envelope["schema_version"], 4)
             self.assertEqual(envelope["status"], "unavailable")
             self.assertEqual(envelope["outcome"], "cancelled")
             self.assertEqual(envelope["selection"]["tier"], "advisor")

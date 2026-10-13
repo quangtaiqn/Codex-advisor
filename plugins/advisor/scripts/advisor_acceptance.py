@@ -1,4 +1,4 @@
-"""Launcher acceptance authentication; no ledger, consumption, or replay state.
+"""Launcher acceptance authentication; authentication independent of ledger consumption.
 
 Trust boundary: repository helpers and owner-only Codex home are trusted, as are
 persisted runtime sessions. This does not defend against their filesystem owner

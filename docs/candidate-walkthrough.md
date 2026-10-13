@@ -1,6 +1,6 @@
 # Phase-A candidate walkthrough
 
-Current candidate: 1.4.9-astra.1. Use [merge-stage-a.md](merge-stage-a.md) for current scope and external handoff evidence. No attended/live runtime inference, desktop activation or installed bridge end-to-end was run. Mocked/synthetic checks do not replace those observations.
+Current candidate: 1.4.9-astra.2. Use [merge-stage-a.md](merge-stage-a.md) for current scope and external handoff evidence. No attended/live runtime inference, desktop activation or installed bridge end-to-end was run. Mocked/synthetic checks do not replace those observations.
 
 ## Historical 1.3.4 acceptance record
 

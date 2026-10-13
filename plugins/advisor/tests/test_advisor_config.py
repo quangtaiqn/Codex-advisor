@@ -179,7 +179,7 @@ class AdvisorConfigTests(unittest.TestCase):
                 "model": "future/x",
                 "effort": "high",
                 "codex_version": version,
-                "transport_contract_version": "1.5",
+                "transport_contract_version": "1.6",
                 "verified_at": "1",
             }
         )

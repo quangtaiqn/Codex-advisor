@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Launcher admission: verify one adjacent transition against persisted runtime.
 
-No checkpoint ledger, consumed-receipt storage, retries, or inference lives here.
-The primary owns the in-session level budget; durable replay prevention is phase B.
+Runtime acceptance owner; durable quota/transfer state lives in advisor_ledger.
+No retries or inference live here.
 """
 from __future__ import annotations
 
@@ -56,10 +56,13 @@ def parent_evidence(parent: str, sessions: str) -> dict[str, Any]:
 
 
 def authorize(level: str, receipt_path: Path, packet: Path, parent: str,
-              sessions: str, source_revision: str) -> dict[str, Any]:
+              sessions: str, source_revision: str, *, verify_only: bool = False,
+              allow_legacy: bool = False) -> dict[str, Any]:
     level = normalize_level(level)
     receipt = json.loads(bounded_file(receipt_path), object_pairs_hook=_duplicate_key)
-    if (not isinstance(receipt, dict) or receipt.get("schema_version") != 3
+    expected_version = 3 if allow_legacy else 4
+    expected_contract = "1.5" if allow_legacy else TRANSPORT_CONTRACT_VERSION
+    if (not isinstance(receipt, dict) or receipt.get("schema_version") != expected_version
             or receipt.get("status") != "completed" or receipt.get("outcome") != "accepted"):
         raise ConfigError("previous result is not an accepted receipt")
     if receipt.get("runtime_source") != resolve_runtime(sessions_directory=sessions):
@@ -68,16 +71,17 @@ def authorize(level: str, receipt_path: Path, packet: Path, parent: str,
     if not isinstance(selection, dict):
         raise ConfigError("previous selection must be an object")
     previous_level = selection.get("level")
-    if not isinstance(previous_level, str) or previous_level not in RUNTIME_EFFORTS or previous_level == "extra_high":
+    if not isinstance(previous_level, str) or previous_level not in RUNTIME_EFFORTS or (previous_level == "extra_high" and not verify_only):
         raise ConfigError("invalid or terminal previous level")
     if (selection.get("tier") != "advisor" or selection.get("model") != ACTIVE_MODEL
             or selection.get("effort") != RUNTIME_EFFORTS[previous_level]
             or selection.get("role") not in ROLES
-            or selection.get("transport_contract_version") != TRANSPORT_CONTRACT_VERSION
+            or selection.get("transport_contract_version") != expected_contract
             or selection.get("source_revision") != source_revision):
         raise ConfigError("previous selection/contract/policy mismatch")
     response = receipt.get("advisor_response")
-    if validate_response(previous_level, response)["next_level"] != level:
+    requested = validate_response(previous_level, response)["next_level"]
+    if not verify_only and requested != level:
         raise ConfigError("previous response did not request this adjacent level; stop when sufficient")
     if receipt.get("escalation") != response["escalation"]:
         raise ConfigError("receipt escalation mismatch")
@@ -147,13 +151,38 @@ def main() -> int:
     parser.add_argument("--previous-result", type=Path)
     parser.add_argument("--packet", type=Path)
     parser.add_argument("--source-revision")
+    parser.add_argument("--ledger-dir")
+    parser.add_argument("--project-root")
+    parser.add_argument("--issue-id")
     args = parser.parse_args()
     try:
         if args.previous_result:
             if not args.level or args.packet is None or not args.source_revision:
                 raise ConfigError("incomplete escalation admission")
-            result = authorize(args.level, args.previous_result, args.packet, args.parent,
+            receipt_parent = args.parent
+            if args.ledger_dir:
+                preliminary = json.loads(bounded_file(args.previous_result), object_pairs_hook=_duplicate_key)
+                runtime = preliminary.get("runtime") if isinstance(preliminary, dict) else None
+                if isinstance(runtime, dict) and runtime.get("parent_thread_id") != args.parent:
+                    from advisor_ledger import verify_transfer
+                    from advisor_ledger_store import Store
+                    args.receipt = args.previous_result
+                    args.issue = args.issue_id
+                    try:
+                        receipt_parent = verify_transfer(Store(args.ledger_dir), args)["receipt_parent"]
+                    except ConfigError as exc:
+                        raise ConfigError("previous parent/child/role mismatch; transfer proof invalid") from exc
+                    parent_evidence(args.parent, args.sessions_dir)
+            prior_parent = os.environ.get("CODEX_THREAD_ID")
+            os.environ["CODEX_THREAD_ID"] = receipt_parent
+            try:
+                result = authorize(args.level, args.previous_result, args.packet, receipt_parent,
                                args.sessions_dir, args.source_revision)
+            finally:
+                if prior_parent is None:
+                    os.environ.pop("CODEX_THREAD_ID", None)
+                else:
+                    os.environ["CODEX_THREAD_ID"] = prior_parent
         else:
             result = {"status": "ok", "parent": parent_evidence(args.parent, args.sessions_dir)}
         print(json.dumps(result, separators=(",", ":")))

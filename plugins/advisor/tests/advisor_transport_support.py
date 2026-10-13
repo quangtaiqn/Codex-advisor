@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -310,7 +311,16 @@ class AdvisorTransportTestCase(unittest.TestCase):
             "ADVISOR_LIVE_CONFIG": str(self.live_config_path),
             "ADVISOR_CODEX_BIN": str(self.fake),
             "CODEX_THREAD_ID": PARENT,
+            "ADVISOR_LEDGER_DIR": str(self.root / "ledger"),
+            "ADVISOR_PROJECT_ROOT": str(ROOT.parents[1]),
+            "ADVISOR_ISSUE_ID": "direct-fixture",
         }
+        initialized = subprocess.run([sys.executable, str(self.plugin_root / "scripts/advisor_ledger.py"),
+                                      "--ledger-dir", str(self.root / "ledger"), "init"],
+                                     env=self.env, capture_output=True, text=True, check=False)
+        self.assertEqual(initialized.returncode, 0, initialized.stderr + initialized.stdout)
+        self.fixture_packets = {}
+        self.last_issue = "direct-fixture"
         self.paths = config.state_paths(self.home)
         sessions = self.home / "sessions" / "fixture"
         sessions.mkdir(parents=True)
@@ -338,6 +348,18 @@ class AdvisorTransportTestCase(unittest.TestCase):
     def run_transport(
         self, *arguments: str, case: str = "valid", env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
+        # Separate scenarios carry explicit distinct evidence, not erased quotas.
+        # Continuations keep their original issue and exact packet.
+        if "--previous-result" in arguments:
+            prior = json.loads(Path(arguments[arguments.index("--previous-result") + 1]).read_text())
+            binding = prior.get("ledger", {}) if isinstance(prior, dict) else {}
+            issue = binding.get("issue", self.last_issue)
+            packet = self.fixture_packets.get(issue, PACKET)
+        else:
+            issue = "fixture-" + uuid.uuid4().hex
+            packet = PACKET.replace("evidence\n", f"evidence scenario {case} execution {issue}\n")
+            self.fixture_packets[issue] = packet
+            self.last_issue = issue
         return subprocess.run(
             [
                 "/bin/sh",
@@ -348,11 +370,11 @@ class AdvisorTransportTestCase(unittest.TestCase):
                 "--sessions-dir",
                 str(self.home / "sessions"),
             ],
-            input=PACKET,
+            input=packet,
             text=True,
             capture_output=True,
             check=False,
-            env={**self.env, "FAKE_CASE": case, **(env or {})},
+            env={**self.env, "FAKE_CASE": case, "ADVISOR_ISSUE_ID": issue, **(env or {})},
             timeout=20,
         )
 

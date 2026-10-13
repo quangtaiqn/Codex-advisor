@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>Codex Advisor — Read-only second opinions</title>
 <meta name="description" content="Codex Advisor adds read-only advice for material Codex decisions, with Astra low-first and bounded adjacent escalation.">
-<meta name="advisor-release" content="1.4.9-astra.1">
+<meta name="advisor-release" content="1.4.9-astra.2">
 <meta property="og:title" content="Codex Advisor">
 <meta property="og:description" content="Read-only second opinions for material Codex decisions.">
 <meta property="og:type" content="website">
@@ -28,7 +28,7 @@
 </header>
 <div class="hero">
     <div class="wrap">
-        <span class="status-pill">Open source &middot; Candidate documentation v1.4.9-astra.1</span>
+        <span class="status-pill">Open source &middot; Candidate documentation v1.4.9-astra.2</span>
         <h1>Codex Advisor</h1>
         <p class="subhead">Automatic read-only advice for material Codex decisions, with smart defaults and bounded escalation. It advises; your main agent decides.</p>
         <div class="cta-row">
@@ -57,8 +57,8 @@ effort_ladder = ["low", "medium", "high", "xhigh"]
     <p>The supported roles <code>advisor-terra</code>, <code>advisor-sol</code> and <code>advisor-astra</code> all start Astra/low for the next consultation. Only an accepted response requesting the adjacent level and primary authorization permit escalation: low → medium → high → extra_high (runtime xhigh). Sufficient advice stops; extra_high is terminal. Each level has one attempt, with no corrective retry.</p>
     <p>Astra is subject to account and runtime availability; the launcher does not silently fall back. Plugin updates may replace edits to the bundled file. Old two-tier configuration needs migration; catalog entries are diagnostic evidence.</p>
     <p>Consult only when cheap local evidence leaves unresolved uncertainty with material impact, during an approved-plan checkpoint or an explicit standalone request. Routine, settled-plan, completion and no-delegation work skips consultation.</p>
-    <p>Long consultations drain the nonterminal shell handoff and require exactly one schema-v3 result envelope after terminal exit. This candidate retains the 1.4.4 result-delivery repair without adding fallback.</p>
-    <p>This repository candidate has no durable checkpoint/replay/resume enforcement. Live runtime and installed-plugin activation remain unverified; it is not deployed or released.</p>
+    <p>Long consultations drain the nonterminal shell handoff and require exactly one schema-v4 result envelope after terminal exit. This candidate retains the 1.4.4 result-delivery repair without adding fallback.</p>
+    <p>This repository candidate enforces durable checkpoint/replay/resume within a trusted owner ledger namespace. Unknown outcomes require proof-based reconcile, never a replacement child. Live runtime and installed-plugin activation remain unverified; it is not deployed or released.</p>
 </section>
 <section id="install" aria-labelledby="install-title">
     <h2 id="install-title">Install from OpenAI</h2>

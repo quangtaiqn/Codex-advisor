@@ -18,7 +18,7 @@ Prepare repository or web research and source references before consultation. Re
 New issue:
 
 ```sh
-/bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --level low <<'ADVISOR_PACKET'
+/bin/sh <absolute-installed-plugin-root>/scripts/run-advisor.sh --ledger-dir /absolute/linux-private/ledger --project-root /absolute/project --issue-id stable-issue --level low <<'ADVISOR_PACKET'
 DECISION
 <one unresolved material question>
 CONTEXT
@@ -46,15 +46,15 @@ Standard/Specialist and advisor-terra/advisor-sol/advisor-astra are supported wr
 
 Each issue starts low. Higher calls require an accepted previous result, an adjacent escalation.next_level with nonblank reason, unresolved_difficulty and required_resolution, and the primary's confirmation that material uncertainty remains after cheap local evidence. Use --previous-result RECEIPT --authorize-escalation with --level medium|high|extra_high. Admission rechecks current parent, exact child/session, policy/transport revision, packet digest, persisted prompt/role/level and response, model/effort, isolation, tools and permission provenance before spawn. A Boolean --chain-authorized flag cannot grant admission. extra_high is logical terminal; runtime effort is xhigh. xhigh is a boundary alias, not a fifth budget. next_level=null stops immediately; return the best result and uncertainty at the terminal level. Transport failures, malformed responses, timeout/cancellation, provenance/model/effort mismatch and tool use are terminal; higher effort cannot repair them.
 
-Phase A has no durable checkpoint ledger, crash-resume/reconcile, cross-session replay prevention or concurrent duplicate admission. The primary tracks level usage within the current session. A receipt is navigation evidence, not a consumed token; phase B will implement durable at-most-once admission, tombstones/retention, resume and replay protection only after separate approval. This limitation does not weaken one-attempt transport, adjacent transition checks, or ownership.
+Phase B uses a durable owner-private ledger for cross-session at-most-once admission, concurrent reservation, receipt consumption and canonical-packet deduplication. Every launch requires a provisioned --ledger-dir, stable --issue-id and Git --project-root. Reservation commits before spawn; crash, failure or unknown consumes the level permanently. Explicit reconcile never spawns a replacement; transfer requires old/new parent proof. Retention preserves consumed tombstones. The trusted owner can alter all state; filesystem rollback across every marker is outside this guarantee. See docs/stage-b-ledger-contract.md and the packaged operations reference for identity, storage, migration and recovery.
 
 The fixed launcher retains --ignore-user-config, --ignore-rules, --sandbox read-only and an isolated workdir. Python 3.11+ runtime preflight precedes helper import/provider launch; Vulture's Python 3.14 is a separate verification toolchain. Deadline, output/packet/queue bounds and child process supervision remain enabled. Startup ownership/cancel-request guards establish ownership before cleanup; an unconditional exit trap removes only the owned mode-0700 consultation directory under Codex home. Preexisting paths and unrelated processes are preserved. Uncatchable termination can leave state; do not infer that no child spawned and do not retry it.
 
 Transport resolution is shared by launch, discovery, doctor, version probes, canary and inspectors: valid ADVISOR_CODEX_BIN, then a valid private installed WSL bridge, then PATH. Invalid explicit overrides fail without fallback. Binary/source/sessions_directory are kept together. The bridge retains checksum, owner/mode and symlink checks, bounded preflight and path conversion. Do not reinstall a bridge or modify Windows/WSL configuration to repair a test.
 
-Envelope schema_version=3 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.5 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v3 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
+Envelope schema_version=4 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.6 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v4 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
 
-The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its A writer emits contract 1.5 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
+The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its B writer emits contract 1.6 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
 
 ## Drain the shell handoff
 
@@ -78,15 +78,15 @@ if (process.exit_code !== 0) {
 }
 const candidates = combinedOutput.split(/\r?\n/).flatMap((line) => {
   try { return [JSON.parse(line)]; } catch { return []; }
-}).filter((value) => value && value.schema_version === 3);
+}).filter((value) => value && value.schema_version === 4);
 if (candidates.length !== 1) {
-  throw new Error("Advisor transport did not return exactly one schema-v3 envelope");
+  throw new Error("Advisor transport did not return exactly one schema-v4 envelope");
 }
 const verifiedEnvelope = candidates[0];
 text(JSON.stringify(verifiedEnvelope));
 ```
 
-The initial yielded result is nonterminal progress; an outer functions.wait update is nonterminal too. Drain the same session_id with write_stdin, retain all chunks, then parse and deliver exactly one schema-v3 envelope. No receipt is accepted before terminal exit.
+The initial yielded result is nonterminal progress; an outer functions.wait update is nonterminal too. Drain the same session_id with write_stdin, retain all chunks, then parse and deliver exactly one schema-v4 envelope. No receipt is accepted before terminal exit.
 
 ## Visible lifecycle
 
@@ -109,6 +109,6 @@ recommendation: <accepted recommendation or unavailable>
 decision: accept | modify | reject | blocked
 ```
 
-For skip/unavailable emit only ADVISOR DECISION unless a child was actually launched. A distinct Codex consultation thread remains the inspectable detailed record. Do not route completion or final review to an advisor. Recovery after an unknown/timeout/cancel outcome is a safe stop, not a retry. Durable checkpoint resume/reconcile and cross-session replay protection are phase B.
+For skip/unavailable emit only ADVISOR DECISION unless a child was actually launched. A distinct Codex consultation thread remains the inspectable detailed record. Do not route completion or final review to an advisor. Recovery after an unknown/timeout/cancel outcome is a safe stop, not a retry. Durable reservation/reconcile and cross-session replay protection are implemented by the B ledger; unknown never releases quota.
 
 Installer retirement paths such as `.retired-v1.3.0-zero-tool` preserve known historical roles; unknown content, symlinks and collision states fail before mutation. User settings, bridge configuration, installed plugin and session model are not altered by this repository integration.

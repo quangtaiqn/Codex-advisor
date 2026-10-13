@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import signal
@@ -102,6 +103,10 @@ class AdvisorCliTests(unittest.TestCase):
         }
         self.write_parent_fixture("read-only")
 
+        self.env.update(ADVISOR_LEDGER_DIR=str(self.root / "ledger"), ADVISOR_PROJECT_ROOT=str(ROOT.parents[1]), ADVISOR_ISSUE_ID="cli-canary")
+        initialized = subprocess.run([sys.executable, str(ROOT / "scripts/advisor_ledger.py"), "--ledger-dir", str(self.root / "ledger"), "init"], env=self.env, capture_output=True, text=True)
+        self.assertEqual(initialized.returncode, 0, initialized.stdout + initialized.stderr)
+
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
@@ -142,7 +147,7 @@ class AdvisorCliTests(unittest.TestCase):
             "schema_version": 1, "consultation_id": str(uuid.uuid4()),
             "started_at": now, "finished_at": now,
             "tier": "advisor", "model": "gpt-6-astra", "effort": "low",
-            "outcome": "failed", "transport_contract_version": "1.5",
+            "outcome": "failed", "transport_contract_version": "1.6",
             "total_duration_ms": 1,
             "attempts": [{"number": 1, "duration_ms": 1, "outcome": "runtime_failed",
                           "usage": {"input": None, "cached_input": None, "output": None, "reasoning": None}}],
@@ -187,7 +192,8 @@ class AdvisorCliTests(unittest.TestCase):
                         authorization.write_text(json.dumps({
                             "model": "gpt-6-astra", "effort": "low",
                             "codex_version": "codex-cli 0.153.2",
-                            "transport_contract_version": "1.5",
+                            "transport_contract_version": "1.6",
+                            "source_revision": "sha256:" + hashlib.sha256((ROOT / "advisor.toml").read_bytes()).hexdigest(),
                             "expires_at": int(time.time()) + 300,
                         }))
                         authorization.chmod(0o600)
@@ -230,7 +236,8 @@ class AdvisorCliTests(unittest.TestCase):
                         self.assertEqual(launch["selection_revision"], launch["source_revision"])
                     if args[0] == "_consume-canary" and exit_code == 0:
                         launch = payload["launch"]
-                        self.assertEqual(sorted(launch), sorted("codex_version deadline_seconds effort model selection_revision selection_source tier transport_contract_version".split()))
+                        self.assertEqual(sorted(launch), sorted("codex_version deadline_seconds effort model selection_revision selection_source source_revision tier transport_contract_version".split()))
+                        self.assertEqual(launch["source_revision"], "sha256:" + hashlib.sha256((ROOT / "advisor.toml").read_bytes()).hexdigest())
                         self.assertEqual((launch["model"], launch["effort"], launch["selection_source"]),
                                          ("gpt-6-astra", "low", "authorized-synthetic-canary"))
 
@@ -388,7 +395,7 @@ class AdvisorCliTests(unittest.TestCase):
             "schema_version": 1, "consultation_id": str(uuid.uuid4()),
             "started_at": "2026-09-04T12:00:00Z", "finished_at": "2026-09-04T12:00:01Z",
             "tier": "advisor", "model": "gpt-6-astra", "effort": "low",
-            "outcome": "failed", "transport_contract_version": "1.5", "total_duration_ms": 1,
+            "outcome": "failed", "transport_contract_version": "1.6", "total_duration_ms": 1,
             "attempts": [{"number": 1, "duration_ms": 1, "outcome": "runtime_failed", "usage": {"input": None, "cached_input": None, "output": None, "reasoning": None}}],
             "totals": {"input": None, "cached_input": None, "output": None, "reasoning": None},
         }

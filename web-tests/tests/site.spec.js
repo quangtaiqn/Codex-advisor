@@ -191,7 +191,7 @@ test('claim surface matches the validated listing', async ({ page }) => {
   await page.goto('/');
   const body = (await bodyText(page)).toLowerCase();
 
-  expect(body).toContain('candidate documentation v1.4.9-astra.1');
+  expect(body).toContain('candidate documentation v1.4.9-astra.2');
   expect(body).toContain('automatic read-only advice');
   expect(body).toContain('smart defaults');
   expect(body).toContain('[advisor]');
@@ -207,9 +207,11 @@ test('claim surface matches the validated listing', async ({ page }) => {
   expect(body).toContain('subject to account and runtime availability');
   expect(body).toContain('plugin updates may replace edits to the bundled file.');
   expect(body).toContain('drain the nonterminal shell handoff');
-  expect(body).toContain('exactly one schema-v3 result envelope');
+  expect(body).toContain('exactly one schema-v4 result envelope');
   expect(body).toContain('retains the 1.4.4 result-delivery repair without adding fallback');
-  expect(body).toContain('no durable checkpoint/replay/resume enforcement');
+  expect(body).toContain('enforces durable checkpoint/replay/resume within a trusted owner ledger namespace');
+  expect(body).toContain('unknown outcomes require proof-based reconcile, never a replacement child');
+  expect(body).not.toContain('no durable checkpoint/replay/resume enforcement');
   expect(body).not.toContain('gpt-5.6-terra');
   expect(body).not.toContain('gpt-6.1-sol');
 });
@@ -217,7 +219,7 @@ test('claim surface matches the validated listing', async ({ page }) => {
 test('each route carries the candidate release metadata', async ({ page }) => {
   for (const { path } of PAGES) {
     await page.goto(path);
-    await expect(page.locator('meta[name="advisor-release"]')).toHaveAttribute('content', '1.4.9-astra.1');
+    await expect(page.locator('meta[name="advisor-release"]')).toHaveAttribute('content', '1.4.9-astra.2');
   }
 });
 
@@ -249,9 +251,10 @@ test('support page uses published directory recovery guidance', async ({ page })
   expect(support).toContain('Deferred handoff returns no receipt');
   expect(support).toContain('nonterminal shell');
   expect(support).toContain('write_stdin');
-  expect(support).toContain('exactly one schema-v3 envelope');
+  expect(support).toContain('exactly one schema-v4 envelope');
   expect(support).toContain('does not add model fallback');
-  expect(support).toContain('Durable checkpoint/replay/resume is deferred.');
+  expect(support).toContain('private durable ledger for cross-session replay protection');
+  expect(support).toContain('unknown outcomes require proof-based reconcile, never a replacement child');
   expect(support).not.toContain('install-agents.sh');
   expect(support).not.toContain('sh plugins/advisor/');
 });

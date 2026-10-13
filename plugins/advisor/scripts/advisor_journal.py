@@ -67,7 +67,7 @@ def validate_journal_record(value: Any) -> dict[str, Any]:
         raise ConfigError("invalid usage journal record") from exc
     if parsed_id.version != 4:
         raise ConfigError("invalid usage journal record")
-    if value["transport_contract_version"] not in {"1.4", TRANSPORT_CONTRACT_VERSION}:
+    if value["transport_contract_version"] not in {"1.4", "1.5", TRANSPORT_CONTRACT_VERSION}:
         raise ConfigError("invalid usage journal record")
 
     def timestamp(name: str) -> dt.datetime:
@@ -206,7 +206,7 @@ def write_usage_journal(
     """Atomically retain one bounded receipt when the user opted in."""
     clean = validate_journal_record(value)
     if clean["transport_contract_version"] != TRANSPORT_CONTRACT_VERSION or clean["tier"] not in {"advisor", "compatibility-test"}:
-        raise ConfigError("current journal writer requires advisor contract 1.5; historical records are read-only")
+        raise ConfigError("current journal writer requires advisor contract 1.6; historical records are read-only")
     validate_active_pair({"model": clean["model"], "effort": clean["effort"]})
     paths = paths or state_paths()
     if not paths.root.exists() and not paths.root.is_symlink():

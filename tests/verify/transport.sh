@@ -177,12 +177,18 @@ valid_packet=$tmp/valid-packet.txt
 printf '%s\n' DECISION 'question' CONTEXT 'evidence' OPTIONS 'choice' BOUNDARIES 'limits' REQUEST 'challenge' >"$valid_packet"
 transport_out=$tmp/transport-out.json
 transport_err=$tmp/transport-err.txt
+fixture_transport() {
+  fixture_namespace=$(mktemp -d "$tmp/ledger-fixture.XXXXXX")
+  chmod 700 "$fixture_namespace"
+  python3 "$script_dir/advisor_ledger.py" --ledger-dir "$fixture_namespace" init >/dev/null || return 96
+  ADVISOR_LEDGER_DIR="$fixture_namespace" ADVISOR_ISSUE_ID=posix-fixture ADVISOR_PROJECT_ROOT="$repo_dir" sh "$transport" "$@"
+}
 assert_transport_clean() {
   [ -d "$fake_home/.tmp/advisor-transport" ] || return 0
   [ "$(find "$fake_home/.tmp/advisor-transport" -mindepth 1 -maxdepth 1 -type d -name 'run.*' | wc -l | tr -d ' ')" -eq 0 ] || fail "private consultation directory survived wrapper exit"
 }
 PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=valid FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$transport_out" 2>"$transport_err" || {
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$transport_out" 2>"$transport_err" || {
     sed -n '1,20p' "$transport_err" >&2
     fail "valid fake transport failed"
   }
@@ -196,7 +202,7 @@ done
 astra_transport_out=$tmp/astra-transport-out.json
 astra_transport_err=$tmp/astra-transport-err.txt
 PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=valid FAKE_EXPECTED_MODEL=gpt-6-astra FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-astra --parent-thread "$transport_parent" <"$valid_packet" >"$astra_transport_out" 2>"$astra_transport_err" || {
+  fixture_transport --role advisor-astra --parent-thread "$transport_parent" <"$valid_packet" >"$astra_transport_out" 2>"$astra_transport_err" || {
     sed -n '1,20p' "$astra_transport_err" >&2
     fail "valid fake Astra transport failed"
   }
@@ -206,7 +212,7 @@ pass "all supported wrapper aliases use Astra/low"
 
 heartbeat_err=$tmp/heartbeat-err.txt
 PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=heartbeat FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/heartbeat-out.json" 2>"$heartbeat_err" || fail "heartbeat transport fixture failed"
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/heartbeat-out.json" 2>"$heartbeat_err" || fail "heartbeat transport fixture failed"
 [ "$(grep -Fc 'owned child invocation still running' "$heartbeat_err")" -eq 1 ] || fail "heartbeat was not emitted once and cleaned up"
 [ "$(wc -l <"$tmp/heartbeat-out.json" | tr -d ' ')" -eq 1 ] || fail "heartbeat fixture contaminated stdout"
 assert_transport_clean
@@ -216,7 +222,7 @@ mkdir "$neutral_capture" "$neutral_prompts"
 retry_count=$tmp/retry-count
 retry_err=$tmp/retry-err.txt
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=neutral-22-first-valid-second FAKE_CODEX_COUNT_FILE="$retry_count" FAKE_CODEX_RESPONSE_CAPTURE_DIR="$neutral_capture" FAKE_CODEX_PROMPT_DIR="$neutral_prompts" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/retry-out.json" 2>"$retry_err"; then fail "legacy text response was accepted"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/retry-out.json" 2>"$retry_err"; then fail "legacy text response was accepted"; fi
 [ "$(cat "$retry_count")" -eq 1 ] || fail "legacy text launched a corrective retry"
 [ "$(wc -l <"$neutral_capture/attempt.1.txt" | tr -d ' ')" -eq 22 ] || fail "legacy regression was not exactly 22 lines"
 [ ! -e "$neutral_prompts/attempt.2.txt" ] || fail "second prompt created"
@@ -227,7 +233,7 @@ assert_transport_clean
 twice_count=$tmp/twice-count
 twice_err=$tmp/twice-error
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=invalid-twice FAKE_CODEX_COUNT_FILE="$twice_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$twice_err"; then fail "transport accepted two invalid responses"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$twice_err"; then fail "transport accepted two invalid responses"; fi
 [ "$(cat "$twice_count")" -eq 1 ] || fail "invalid-twice did not stop after one attempt"
 grep -Fq 'class=invalid-response field=response' "$twice_err" || fail "invalid JSON diagnostic mismatch"
 assert_transport_clean
@@ -235,35 +241,35 @@ assert_transport_clean
 reused_count=$tmp/reused-count
 reused_err=$tmp/reused-err.txt
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=retry-reused-child FAKE_CODEX_COUNT_FILE="$reused_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$reused_err"; then fail "transport accepted a retry that reused the first child"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$reused_err"; then fail "transport accepted a retry that reused the first child"; fi
 [ "$(cat "$reused_count")" -eq 1 ] || fail "reused-child legacy response did not stop after one launch"
 grep -Fq 'no corrective retry' "$reused_err" || fail "reused-child retry was not classified as terminal identity failure"
 
 for terminal_case in launcher-failure duplicate-thread same-session runtime-invalid-first; do
   terminal_count=$tmp/terminal-count-$terminal_case
   if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE="$terminal_case" FAKE_CODEX_COUNT_FILE="$terminal_count" FAKE_PARENT_ID="$transport_parent" \
-    sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted terminal case: $terminal_case"; fi
+    fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted terminal case: $terminal_case"; fi
   [ "$(cat "$terminal_count")" -eq 1 ] || fail "transport retried terminal case: $terminal_case"
 done
 
 second_runtime_count=$tmp/terminal-count-runtime-invalid-second
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=runtime-invalid-second FAKE_CODEX_COUNT_FILE="$second_runtime_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted runtime-invalid retry child"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>&1; then fail "transport accepted runtime-invalid retry child"; fi
 [ "$(cat "$second_runtime_count")" -eq 1 ] || fail "runtime-invalid second child launched a second child"
 assert_transport_clean
 
 PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=desktop-valid FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/desktop-transport-out.json" 2>"$tmp/desktop-transport-err.txt" || fail "transport rejected exact Codex Desktop provenance"
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/desktop-transport-out.json" 2>"$tmp/desktop-transport-err.txt" || fail "transport rejected exact Codex Desktop provenance"
 jq -e '.status=="completed" and .runtime.transport=="codex-exec" and .runtime.sandbox_policy_type=="read-only"' "$tmp/desktop-transport-out.json" >/dev/null || fail "desktop transport result mismatch"
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=provenance-mismatch FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$tmp/provenance-transport-err.txt"; then fail "transport accepted near-match provenance"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$tmp/provenance-transport-err.txt"; then fail "transport accepted near-match provenance"; fi
 grep -Fq 'runtime_provenance_mismatch' "$tmp/provenance-transport-err.txt" || fail "transport did not preserve provenance mismatch category"
 
 misordered_packet=$tmp/misordered-packet.txt
 printf '%s\n' CONTEXT 'evidence' DECISION 'question' OPTIONS 'choice' BOUNDARIES 'limits' REQUEST 'challenge' >"$misordered_packet"
 marker=$tmp/fake-codex-called
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_MARKER="$marker" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$misordered_packet" >/dev/null 2>&1; then fail "transport accepted misordered packet headings"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$misordered_packet" >/dev/null 2>&1; then fail "transport accepted misordered packet headings"; fi
 [ ! -e "$marker" ] || fail "transport invoked codex before rejecting packet order"
 
 for diagnostic_spec in \
@@ -290,7 +296,7 @@ for diagnostic_spec in \
   rejected_out=$tmp/rejected-out-$rejected_case.txt
   rejected_err=$tmp/rejected-err-$rejected_case.txt
   if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE="$rejected_case" FAKE_CODEX_COUNT_FILE="$rejected_count" FAKE_PARENT_ID="$transport_parent" \
-    sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$rejected_out" 2>"$rejected_err"; then
+    fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$rejected_out" 2>"$rejected_err"; then
     fail "transport accepted fake case: $rejected_case"
   fi
   [ "$(cat "$rejected_count")" -eq 1 ] || fail "response validation case did not exercise one attempt: $rejected_case"
@@ -302,7 +308,7 @@ done
 render_count=$tmp/render-count
 render_err=$tmp/render-err
 if PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=valid FAKE_JQ_RENDER_FAILURE=1 FAKE_CODEX_COUNT_FILE="$render_count" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$render_err"; then fail "transport accepted render failure"; fi
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >/dev/null 2>"$render_err"; then fail "transport accepted render failure"; fi
 [ "$(cat "$render_count")" -eq 1 ] || fail "render failure did not stop after one corrective retry"
 grep -Fq 'no corrective retry' "$render_err" || fail "render failure diagnostic mismatch"
 assert_transport_clean
@@ -315,10 +321,10 @@ jq --stream -c 'select(length == 2)' "$truncated_fixture" >"$tmp/truncated-parse
 
 concurrent_sync=$tmp/concurrent-sync; mkdir "$concurrent_sync"
 PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=concurrent FAKE_CODEX_CONCURRENT_SLOT=1 FAKE_CODEX_SYNC_DIR="$concurrent_sync" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-1.json" 2>"$tmp/concurrent-1.err" &
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-1.json" 2>"$tmp/concurrent-1.err" &
 concurrent_pid_1=$!
 PATH="$fake_bin:$PATH" ADVISOR_CODEX_BIN="$fake_bin/codex" CODEX_HOME="$fake_home" FAKE_CODEX_CASE=concurrent FAKE_CODEX_CONCURRENT_SLOT=2 FAKE_CODEX_SYNC_DIR="$concurrent_sync" FAKE_PARENT_ID="$transport_parent" \
-  sh "$transport" --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-2.json" 2>"$tmp/concurrent-2.err" &
+  fixture_transport --role advisor-terra --parent-thread "$transport_parent" <"$valid_packet" >"$tmp/concurrent-2.json" 2>"$tmp/concurrent-2.err" &
 concurrent_pid_2=$!
 wait "$concurrent_pid_1" || fail "first concurrent transport failed"
 : >"$concurrent_sync/release.2"

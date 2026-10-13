@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark">
 <title>Support &amp; Troubleshooting — Codex Advisor</title>
 <meta name="description" content="Support channels, prerequisites checklist, and troubleshooting guide for the Codex Advisor plugin.">
-<meta name="advisor-release" content="1.4.9-astra.1">
+<meta name="advisor-release" content="1.4.9-astra.2">
 <link rel="canonical" href="https://zerodelta.dev/advisor/support/">
 <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets/style.css">
@@ -101,14 +101,14 @@ route: unavailable</code></pre>
     <p><strong>Symptom.</strong> The consultation launcher reports a failure or an unexpected model response.</p>
     <p><strong>Cause.</strong> The configured model is unavailable or unauthorized for your authenticated Codex/OpenAI account.</p>
     <p><strong>Remedies.</strong> Check the <code>model</code> and <code>effort_ladder</code> values in the installed <code>advisor.toml</code>, verify account access and usage availability, and correct the file in place. Invalid TOML and unsupported-model settings report an error; the launcher does not silently fall back.</p>
-    <p>Standard, Specialist, <code>advisor-terra</code>, <code>advisor-sol</code> and <code>advisor-astra</code> are supported initial Astra/low wrapper aliases. Higher effort requires an accepted adjacent escalation request and primary authorization. Durable checkpoint/replay/resume is deferred.</p>
+    <p>Standard, Specialist, <code>advisor-terra</code>, <code>advisor-sol</code> and <code>advisor-astra</code> are supported initial Astra/low wrapper aliases. Higher effort requires an accepted adjacent escalation request and primary authorization. The B candidate uses a private durable ledger for cross-session replay protection. Reservation consumes a level before spawn; unknown outcomes require proof-based reconcile, never a replacement child. Installing this repository candidate requires a separate owner decision.</p>
 
     <h3>C. Response rejected</h3>
     <p><strong>Symptom.</strong> A response fails schema or semantic validation.</p>
     <p><strong>Behavior.</strong> Each level has one attempt and no corrective retry. A malformed response, packet, launcher, identity, provenance, runtime, wrong-model, wrong-effort, or tool-use failure records <code>recommendation: unavailable</code> and <code>decision: blocked</code> and stops. Higher effort cannot repair a transport failure. Escalate only when an accepted response requests the adjacent level and the primary confirms material uncertainty remains.</p>
     <h3>D. Deferred handoff returns no receipt</h3>
     <p><strong>Symptom.</strong> A long consultation appears to launch, but the enclosing call reports no validated result.</p>
-    <p><strong>Behavior.</strong> A nonterminal shell <code>session_id</code> is progress, not a receipt. The caller drains that exact session with <code>write_stdin</code>, accumulates its output, requires terminal exit, and validates exactly one schema-v3 envelope before returning it. An outer wait or heartbeat is not terminal evidence.</p>
+    <p><strong>Behavior.</strong> A nonterminal shell <code>session_id</code> is progress, not a receipt. The caller drains that exact session with <code>write_stdin</code>, accumulates its output, requires terminal exit, and validates exactly one schema-v4 envelope before returning it. An outer wait or heartbeat is not terminal evidence.</p>
     <p><strong>Recovery.</strong> Install an available update from the official OpenAI Plugins Directory, then start a new Codex thread and repeat the explicit request. This repair does not add model fallback; all supported aliases retain the fixed Astra/low initial routing and adjacent escalation rules.</p>
 </section>
 

@@ -1,10 +1,14 @@
-# Phase-A candidate changes — 1.4.9-astra.1
+# Phase-B candidate changes — 1.4.9-astra.2
 
-Repository-only candidate; not released, deployed, installed or live-verified. Receives module/lifecycle/privacy/license fixes, ports local Astra adjacent escalation and all supported aliases, uses one attempt per level, removes active policy/chain monolith dependencies, and defers all durable ledger/replay/resume work to B. transport contract 1.5 extends envelope schema 3. Historical receipts remain tied to their original SHA.
+Repository-only candidate; not released, deployed, installed or live-verified. Adds durable owner-private reservations, canonical replay prevention, consumed receipts, explicit reconcile/transfer and conservative A migration. Envelope4/transport1.6; no retry/fallback or live capability/publication claim. Every entry still starts Astra/low with adjacent local escalation and the existing read-only/zero-tool safety guards.
 
-A-P1-01 follow-up removes unsupported conditional composition from the provider output schema, declares the nullable per-level escalation enum explicitly, and preserves local semantic validation. Offline launcher regression checks do not establish live provider acceptance.
+A-P1-01 provider-schema compatibility and local escalation validation remain intact. Baseline A is ca963d330db8207bded885659e2f9376224f8678. Offline tests do not establish live provider acceptance.
 
-Candidate content digest: `8ec02d62df75d95932841f182589665402879500c006c17de1107dd7f48d42e4`.
+Candidate content digest: `96183d1e3db0986b276aa63af6c78888a302c97cfa41399d7b340e150aea9c1d`.
+
+## Phase-A candidate record — 1.4.9-astra.1
+
+Phase A received module/lifecycle/privacy/license fixes, ported local Astra adjacent escalation and all supported aliases, used one attempt per level and removed active policy/chain monolith dependencies. Its envelope3/transport1.5 deferred durable ledger/replay/resume to B. Historical A receipts remain tied to their original SHA and cannot authorize B escalation.
 
 # Historical upstream release record
 

@@ -98,7 +98,7 @@ class UsageTests(unittest.TestCase):
             "model": "gpt-6-astra",
             "effort": "low",
             "outcome": "accepted",
-            "transport_contract_version": "1.5",
+            "transport_contract_version": "1.6",
             "total_duration_ms": 1000,
             "attempts": [
                 {
@@ -251,6 +251,13 @@ class UsageTests(unittest.TestCase):
         with self.assertRaises(process.ProcessUnavailable):
             process.usage_from_events(str(events), duration_ms=1)
 
+    def ledger_env(self, env):
+        directory = self.base / "ledger"
+        if not directory.exists():
+            init = subprocess.run([sys.executable, str(ROOT / "scripts/advisor_ledger.py"), "--ledger-dir", str(directory), "init"], env=env, capture_output=True, text=True)
+            self.assertEqual(init.returncode, 0, init.stderr + init.stdout)
+        return {**env, "ADVISOR_LEDGER_DIR": str(directory), "ADVISOR_PROJECT_ROOT": str(ROOT.parents[1]), "ADVISOR_ISSUE_ID": "usage-" + str(self.transport_calls)}
+
     def transport(self, case, journal=False):
         self.transport_calls += 1
         self.home.mkdir(mode=0o700, exist_ok=True)
@@ -276,6 +283,7 @@ class UsageTests(unittest.TestCase):
             "FAKE_COUNT": str(self.base / "count"),
             "FAKE_CASE": case,
         }
+        env = self.ledger_env(env)
         return subprocess.run(
             [
                 "/bin/sh",
@@ -287,7 +295,7 @@ class UsageTests(unittest.TestCase):
                 "--sessions-dir",
                 str(self.home / "sessions"),
             ],
-            input=PACKET,
+            input=PACKET.replace("evidence", "evidence usage scenario " + str(self.transport_calls)),
             text=True,
             capture_output=True,
             env=env,
@@ -370,6 +378,7 @@ class UsageTests(unittest.TestCase):
             "FAKE_CASE": "hang",
             "FAKE_USAGE_READY": str(self.base / "usage-ready"),
         }
+        env = self.ledger_env(env)
         child = subprocess.Popen(
             [
                 "/bin/sh",

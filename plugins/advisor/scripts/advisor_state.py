@@ -28,7 +28,7 @@ def resolve_runtime(**kwargs: Any) -> dict[str, str]:
         raise ConfigError(str(exc)) from exc
 
 SCHEMA_VERSION = 1
-TRANSPORT_CONTRACT_VERSION = "1.5"
+TRANSPORT_CONTRACT_VERSION = "1.6"
 ACTIVE_MODEL = "gpt-6-astra"
 ACTIVE_EFFORTS = ("low", "medium", "high", "xhigh")
 MAX_JSON_BYTES = 1_000_000

@@ -1,6 +1,6 @@
 # Codex Advisor
 
-Repository-only candidate `1.4.9-astra.1` integrates the fork's modules and safety fixes with the local Astra ladder. It is not installed, deployed, released or live-runtime verified.
+Repository-only candidate `1.4.9-astra.2` integrates the fork's modules and safety fixes with the local Astra ladder. It is not installed, deployed, released or live-runtime verified.
 
 ## Install and supported surfaces
 
@@ -41,7 +41,7 @@ Standard/Specialist and advisor-terra/advisor-sol/advisor-astra are supported wr
 
 Each issue starts low. Higher calls require an accepted previous result, an adjacent escalation.next_level with nonblank reason, unresolved_difficulty and required_resolution, and the primary's confirmation that material uncertainty remains after cheap local evidence. Use --previous-result RECEIPT --authorize-escalation with --level medium|high|extra_high. Admission rechecks current parent, exact child/session, policy/transport revision, packet digest, persisted prompt/role/level and response, model/effort, isolation, tools and permission provenance before spawn. A Boolean --chain-authorized flag cannot grant admission. extra_high is logical terminal; runtime effort is xhigh. xhigh is a boundary alias, not a fifth budget. next_level=null stops immediately; return the best result and uncertainty at the terminal level. Transport failures, malformed responses, timeout/cancellation, provenance/model/effort mismatch and tool use are terminal; higher effort cannot repair them.
 
-Phase A has no durable checkpoint ledger, crash-resume/reconcile, cross-session replay prevention or concurrent duplicate admission. The primary tracks level usage within the current session. A receipt is navigation evidence, not a consumed token; phase B will implement durable at-most-once admission, tombstones/retention, resume and replay protection only after separate approval. This limitation does not weaken one-attempt transport, adjacent transition checks, or ownership.
+Phase B uses a durable owner-private ledger for cross-session at-most-once admission, concurrent reservation, receipt consumption and canonical-packet deduplication. Every launch requires a provisioned --ledger-dir, stable --issue-id and Git --project-root. Reservation commits before spawn; crash, failure or unknown consumes the level permanently. Explicit reconcile never spawns a replacement; transfer requires old/new parent proof. Retention preserves consumed tombstones. The trusted owner can alter all state; filesystem rollback across every marker is outside this guarantee. See docs/stage-b-ledger-contract.md and the packaged operations reference for identity, storage, migration and recovery.
 
 ## Safety and local state
 
@@ -49,13 +49,13 @@ The fixed launcher retains --ignore-user-config, --ignore-rules, --sandbox read-
 
 Transport resolution is shared by launch, discovery, doctor, version probes, canary and inspectors: valid ADVISOR_CODEX_BIN, then a valid private installed WSL bridge, then PATH. Invalid explicit overrides fail without fallback. Binary/source/sessions_directory are kept together. The bridge retains checksum, owner/mode and symlink checks, bounded preflight and path conversion. Do not reinstall a bridge or modify Windows/WSL configuration to repair a test.
 
-Envelope schema_version=3 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.5 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v3 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
+Envelope schema_version=4 extends the existing shape with selection.level/role, advisor_response, escalation, packet_identity and runtime_source. transport_contract_version=1.6 does not accept old receipts for admission. stdout has exactly one final JSON envelope; progress stays on stderr. Failures keep truthful outcome/attempt/usage data, with unavailable counters represented as null. A nonempty session_id is nonterminal: drain the exact handle with write_stdin before parsing exactly one schema-v4 envelope. Outer functions.wait updates are nonterminal progress, not final receipts.
 
-The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its A writer emits contract 1.5 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
+The optional content-free usage journal is disabled by default, uses owner-only locked storage and enforces byte/count/30-day retention bounds. Its B writer emits contract 1.6 with advisor/compatibility-test semantics and one attempt; the reader preserves historical tiers/outcomes/contracts without relabeling them. Failure/cancellation usage is retained. Catalog or journal state cannot authorize escalation.
 
 ## Development
 
-`advisor_config.py` is a facade/CLI; settings, state, catalog, journal, discovery, doctor and canary each own their module. `advisor_admission.py` verifies navigation receipts for the launcher. `advisor_transport.py` resolves one coherent executable/sessions source. The old advisor_policy.py and active advisor_chain.py are removed after their A contracts are ported; durable chain work is deferred.
+`advisor_config.py` is a facade/CLI; settings, state, catalog, journal, discovery, doctor and canary each own their module. `advisor_admission.py` verifies navigation receipts for the launcher. `advisor_transport.py` resolves one coherent executable/sessions source. The old advisor_policy.py and active advisor_chain.py are removed after their A contracts are ported; durable chain state is owned by advisor_ledger.py/advisor_ledger_store.py.
 
 Run `sh plugins/advisor/scripts/verify.sh` and the pinned hooks in `.pre-commit-config.yaml`. Ruff, Vulture, file-size, repo-tests, upload-readiness tests and full configured Playwright projects remain required. No wildcard lint/size exceptions are introduced.
 

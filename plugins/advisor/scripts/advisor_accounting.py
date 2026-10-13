@@ -168,7 +168,7 @@ def accounting_report(sessions_dir, journal_dir, since, until, parse_time):
             identifier_valid = isinstance(identifier, str) and uuid.UUID(identifier).version == 4
         except (ValueError, AttributeError):
             identifier_valid = False
-        proven = invocation_proven and tool_exit in (None, 0) and (envelope.get('schema_version') == 3) and identifier_valid and isinstance(selection, dict) and (selection.get('transport_contract_version') in ('1.4', TRANSPORT_CONTRACT_VERSION)) and isinstance(runtime, dict) and (runtime.get('transport') == 'codex-exec') and (runtime.get('parent_thread_id') == parent_id) and (runtime.get('model') == selection.get('model')) and (runtime.get('effort') == selection.get('effort')) and valid_envelope_usage(usage, rows)
+        proven = invocation_proven and tool_exit in (None, 0) and (envelope.get('schema_version') in (3, 4)) and identifier_valid and isinstance(selection, dict) and (selection.get('transport_contract_version') in ('1.4', '1.5', TRANSPORT_CONTRACT_VERSION)) and isinstance(runtime, dict) and (runtime.get('transport') == 'codex-exec') and (runtime.get('parent_thread_id') == parent_id) and (runtime.get('model') == selection.get('model')) and (runtime.get('effort') == selection.get('effort')) and valid_envelope_usage(usage, rows)
         child = child_runtime.get(runtime.get('thread_id')) if isinstance(runtime, dict) else None
         if proven and child:
             _meta, contexts, child_entries = child

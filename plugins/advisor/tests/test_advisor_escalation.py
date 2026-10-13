@@ -1,6 +1,7 @@
 """Production launcher proof for policy transitions; fixtures are not live inference."""
 from __future__ import annotations
 import json
+import hashlib
 import subprocess
 import unittest
 
@@ -177,7 +178,8 @@ class AdvisorEscalationTests(AdvisorTransportTestCase):
         response = json.loads(rows[-1]["payload"]["content"][0]["text"])
         forged.update(status="completed", outcome="accepted", runtime=json.loads(runtime.stdout),
                       advisor_response=response, escalation=response["escalation"],
-                      packet_identity=accepted["packet_identity"], runtime_source=accepted["runtime_source"])
+                      packet_identity={"sha256": hashlib.sha256(self.fixture_packets[self.last_issue].encode()).hexdigest()},
+                      runtime_source=accepted["runtime_source"])
         forged["attempts"][0]["outcome"] = "accepted"
         # A token from a genuinely accepted consultation cannot attest this rejected child.
         if "acceptance_proof" in accepted:

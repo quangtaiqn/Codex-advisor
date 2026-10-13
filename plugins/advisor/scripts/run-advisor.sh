@@ -6,7 +6,7 @@ set -eu
 fail() {
   printf '%s\n' "ADVISOR TRANSPORT: unavailable ($*)" >&2
   if command -v terminal_failure >/dev/null 2>&1; then terminal_failure "$*" || :; else
-    printf '%s\n' '{"schema_version":3,"status":"unavailable","outcome":"failed","selection":null,"attempts":[],"usage":null,"runtime":null,"response":null,"advisor_response":null,"escalation":null}'
+    printf '%s\n' '{"schema_version":4,"status":"unavailable","outcome":"failed","selection":null,"attempts":[],"usage":null,"runtime":null,"response":null,"advisor_response":null,"escalation":null}'
   fi
   exit 1
 }
@@ -17,8 +17,17 @@ utc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 role='' tier='' level='' previous_result='' authorize_escalation=false preset='' canary_token='' parent_thread_id='' sessions_dir=''
 selection_source='' selection_revision=null source_revision=null
+ledger_dir=${ADVISOR_LEDGER_DIR-} issue_id=${ADVISOR_ISSUE_ID-} project_root=${ADVISOR_PROJECT_ROOT:-$(pwd)}
+ledger_binding=null ledger_reserved=false
+supersedes='' revision_reason='' evidence_digest=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --ledger-dir) [ "$#" -ge 2 ] || fail "--ledger-dir requires PATH"; ledger_dir=$2; shift 2 ;;
+    --issue-id) [ "$#" -ge 2 ] || fail "--issue-id requires ID"; issue_id=$2; shift 2 ;;
+    --project-root) [ "$#" -ge 2 ] || fail "--project-root requires PATH"; project_root=$2; shift 2 ;;
+    --supersedes) [ "$#" -ge 2 ] || fail "--supersedes requires ID"; supersedes=$2; shift 2 ;;
+    --revision-reason) [ "$#" -ge 2 ] || fail "--revision-reason requires TEXT"; revision_reason=$2; shift 2 ;;
+    --evidence-digest) [ "$#" -ge 2 ] || fail "--evidence-digest requires SHA256"; evidence_digest=$2; shift 2 ;;
     --level) [ "$#" -ge 2 ] || fail "--level requires LEVEL"; level=$2; shift 2 ;;
     --previous-result) [ "$#" -ge 2 ] || fail "--previous-result requires PATH"; previous_result=$2; shift 2 ;;
     --authorize-escalation) authorize_escalation=true; shift ;;
@@ -52,7 +61,7 @@ import sys
 raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
 PY
 command -v jq >/dev/null 2>&1 || fail "jq is unavailable"
-for helper in advisor_acceptance.py advisor_accounting.py advisor_config.py advisor_state.py advisor_catalog.py advisor_settings.py advisor_journal.py advisor_discovery.py advisor_canary.py advisor_doctor.py advisor_process.py advisor_transport.py advisor_admission.py inspect-agent-runtime.sh inspect-parent-runtime.sh; do
+for helper in advisor_ledger.py advisor_ledger_store.py advisor_acceptance.py advisor_accounting.py advisor_config.py advisor_state.py advisor_catalog.py advisor_settings.py advisor_journal.py advisor_discovery.py advisor_canary.py advisor_doctor.py advisor_process.py advisor_transport.py advisor_admission.py inspect-agent-runtime.sh inspect-parent-runtime.sh; do
   [ -f "$script_dir/$helper" ] && [ ! -L "$script_dir/$helper" ] || fail "installed Advisor helper is unsafe"
 done
 if [ -n "$canary_token" ]; then
@@ -101,6 +110,7 @@ attempt_records='[]'
 consultation_started_ms=$(now_ms) || fail "consultation timing initialization failed"
 attempt_open=false
 terminal_emitted=false
+ledger() { python3 "$script_dir/advisor_ledger.py" --ledger-dir "$ledger_dir" --project-root "$project_root" --issue-id "$issue_id" "$@" --launcher-pid "$$"; }
 
 usage_totals() {
   jq -cn --argjson attempts "$attempt_records" '
@@ -131,6 +141,9 @@ terminal_failure() {
     attempt_records=$(jq -cn --argjson prior "$attempt_records" --argjson usage "$failure_usage" --argjson number "$attempt" --arg outcome "$attempt_outcome" '$prior + [{number:$number,outcome:$outcome,duration_ms:$usage.duration_ms,usage:$usage.usage,availability:$usage.availability}]') || return 0
     attempt_open=false
   fi
+  if [ "$ledger_reserved" = true ]; then
+    ledger fail --execution "$consultation_id" --outcome "$consultation_outcome" >/dev/null 2>&1 || progress "ledger failure finalization unavailable; quota remains consumed"
+  fi
   consultation_finished=$(utc_now) || return 0
   finish_ms=$(now_ms) || return 0
   total_duration_ms=$((finish_ms - consultation_started_ms))
@@ -139,10 +152,10 @@ terminal_failure() {
   availability=$(printf '%s' "$metric_rows" | jq -c '{input:.input.availability,cached_input:.cached_input.availability,output:.output.availability,reasoning:.reasoning.availability}') || return 0
   if [ "$journal_enabled" = true ]; then
     progress "writing content-free usage journal"
-    journal_record=$(jq -cn --arg id "$consultation_id" --arg started "$consultation_started" --arg finished "$consultation_finished" --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg outcome "$consultation_outcome" --argjson duration "$total_duration_ms" --argjson attempts "$attempt_records" --argjson totals "$totals" '{schema_version:1,consultation_id:$id,started_at:$started,finished_at:$finished,tier:$tier,model:$model,effort:$effort,outcome:$outcome,transport_contract_version:"1.5",total_duration_ms:$duration,attempts:[$attempts[]|{number,duration_ms,outcome,usage}],totals:$totals}') || journal_record=''
+    journal_record=$(jq -cn --arg id "$consultation_id" --arg started "$consultation_started" --arg finished "$consultation_finished" --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg outcome "$consultation_outcome" --argjson duration "$total_duration_ms" --argjson attempts "$attempt_records" --argjson totals "$totals" '{schema_version:1,consultation_id:$id,started_at:$started,finished_at:$finished,tier:$tier,model:$model,effort:$effort,outcome:$outcome,transport_contract_version:"1.6",total_duration_ms:$duration,attempts:[$attempts[]|{number,duration_ms,outcome,usage}],totals:$totals}') || journal_record=''
     if [ -z "$journal_record" ] || ! python3 "$script_dir/advisor_config.py" --json _journal-record "$journal_record" >/dev/null 2>&1; then printf '%s\n' 'ADVISOR TRANSPORT: warning (usage journal write unavailable)' >&2; fi
   fi
-  jq -cn --arg id "$consultation_id" --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --arg outcome "$consultation_outcome" --argjson attempts "$attempt_records" --argjson totals "$totals" --argjson availability "$availability" --argjson duration "$total_duration_ms" '{schema_version:3,status:"unavailable",outcome:$outcome,consultation_id:$id,selection:{tier:$tier,level:$level,role:$role,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.5"},attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:null,response:null,advisor_response:null,escalation:null}' || :
+  jq -cn --arg id "$consultation_id" --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --arg outcome "$consultation_outcome" --argjson attempts "$attempt_records" --argjson totals "$totals" --argjson availability "$availability" --argjson duration "$total_duration_ms" '{schema_version:4,status:"unavailable",outcome:$outcome,consultation_id:$id,selection:{tier:$tier,level:$level,role:$role,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.6"},attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:null,response:null,advisor_response:null,escalation:null}' || :
 }
 
 [ -n "$parent_thread_id" ] || parent_thread_id=${CODEX_THREAD_ID-}
@@ -258,7 +271,7 @@ PY
 ) || fail "packet digest unavailable"
 previous_admission=''
 if [ "$level" != low ]; then
-  if ! previous_admission=$(python3 "$script_dir/advisor_admission.py" --parent "$parent_thread_id" --sessions-dir "$sessions_dir" --level "$level" --previous-result "$previous_result" --packet "$packet" --source-revision "$(printf '%s' "$source_revision" | jq -r '.')"); then
+  if ! previous_admission=$(python3 "$script_dir/advisor_admission.py" --parent "$parent_thread_id" --sessions-dir "$sessions_dir" --level "$level" --previous-result "$previous_result" --packet "$packet" --source-revision "$(printf '%s' "$source_revision" | jq -r '.')" --ledger-dir "$ledger_dir" --project-root "$project_root" --issue-id "$issue_id"); then
     admission_error=$(printf '%s' "$previous_admission" | jq -r '.error // "escalation admission failed"')
     fail "$admission_error"
   fi
@@ -323,6 +336,12 @@ prompt=$base_prompt
   workdir=$transport_dir/workdir.$attempt
   mkdir "$workdir" || fail "isolated work directory creation failed"
 
+  if ! reservation=$(ledger reserve --level "$level" --execution "$consultation_id" --packet "$packet" --parent "$parent_thread_id" --policy "$(printf '%s' "$source_revision" | jq -r '.')" --source "$runtime_source" --supersedes "$supersedes" --reason "$revision_reason" --evidence "$evidence_digest" ${previous_result:+--receipt} ${previous_result:+"$previous_result"}); then
+    fail "$(printf '%s' "$reservation" | jq -r '.error // "ledger admission unavailable"')"
+  fi
+  ledger_binding=$(printf '%s' "$reservation" | jq -c '.ledger') || fail "ledger binding unavailable"
+  ledger_reserved=true
+  ledger start --execution "$consultation_id" >/dev/null || fail "ledger start persistence unavailable"
   attempt_started_ms=$(now_ms) || fail "attempt timing initialization failed"
   attempt_open=true
   progress "launching $role ($model, $effort, read-only) deadline ${deadline_seconds}s, attempt $attempt of 1"
@@ -392,15 +411,17 @@ total_duration_ms=$((consultation_finished_ms - consultation_started_ms))
 metric_rows=$(usage_totals) || fail "usage total construction failed"
 totals=$(printf '%s' "$metric_rows" | jq -c '{input:.input.value,cached_input:.cached_input.value,output:.output.value,reasoning:.reasoning.value}') || fail "usage total construction failed"
 availability=$(printf '%s' "$metric_rows" | jq -c '{input:.input.availability,cached_input:.cached_input.availability,output:.output.availability,reasoning:.reasoning.availability}') || fail "usage total construction failed"
-jq -cn --argjson evidence "$(cat "$evidence")" --rawfile response "$rendered" --argjson advisor_response "$(cat "$normalized")" --arg digest "$packet_digest" --argjson runtime_source "$runtime_source" \
+jq -cn --argjson evidence "$(cat "$evidence")" --rawfile response "$rendered" --argjson advisor_response "$(cat "$normalized")" --arg digest "$packet_digest" --argjson runtime_source "$runtime_source" --argjson ledger "$ledger_binding" \
   --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" \
   --arg source "$selection_source" --argjson revision "$selection_revision" --argjson source_revision "$source_revision" --argjson attempts "$attempt_records" --argjson totals "$totals" --arg id "$consultation_id" \
   --argjson availability "$availability" --argjson duration "$total_duration_ms" \
-  '{schema_version:3,status:"completed",outcome:"accepted",consultation_id:$id,selection:{tier:$tier,level:$level,role:$role,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.5"},attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:$evidence,response:$response,advisor_response:$advisor_response,escalation:$advisor_response.escalation,packet_identity:{sha256:$digest},runtime_source:$runtime_source}' >"$transport_dir/accepted.json" || fail "accepted envelope construction failed"
+  '{schema_version:4,status:"completed",outcome:"accepted",consultation_id:$id,selection:{tier:$tier,level:$level,role:$role,model:$model,effort:$effort,source:$source,revision:$revision,source_revision:$source_revision,transport_contract_version:"1.6"},attempts:$attempts,usage:{total_duration_ms:$duration,totals:$totals,availability:$availability},runtime:$evidence,response:$response,advisor_response:$advisor_response,escalation:$advisor_response.escalation,packet_identity:{sha256:$digest},runtime_source:$runtime_source,ledger:$ledger}' >"$transport_dir/accepted.json" || fail "accepted envelope construction failed"
 python3 "$script_dir/advisor_acceptance.py" --seal "$transport_dir/accepted.json" >"$transport_dir/sealed.json" || fail "launcher acceptance proof unavailable"
+ledger accept --execution "$consultation_id" --receipt "$transport_dir/sealed.json" >/dev/null || fail "ledger accepted persistence unavailable; no accepted result published"
+ledger_reserved=false
 if [ "$journal_enabled" = true ]; then
   progress "writing content-free usage journal"
-  journal_record=$(jq -cn --arg id "$consultation_id" --arg started "$consultation_started" --arg finished "$consultation_finished" --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --argjson duration "$total_duration_ms" --argjson attempts "$attempt_records" --argjson totals "$totals" '{schema_version:1,consultation_id:$id,started_at:$started,finished_at:$finished,tier:$tier,model:$model,effort:$effort,outcome:"accepted",transport_contract_version:"1.5",total_duration_ms:$duration,attempts:[$attempts[] | {number,duration_ms,outcome,usage}],totals:$totals}') || journal_record=''
+  journal_record=$(jq -cn --arg id "$consultation_id" --arg started "$consultation_started" --arg finished "$consultation_finished" --arg level "$level" --arg role "$role" --arg tier "$tier" --arg model "$model" --arg effort "$effort" --argjson duration "$total_duration_ms" --argjson attempts "$attempt_records" --argjson totals "$totals" '{schema_version:1,consultation_id:$id,started_at:$started,finished_at:$finished,tier:$tier,model:$model,effort:$effort,outcome:"accepted",transport_contract_version:"1.6",total_duration_ms:$duration,attempts:[$attempts[] | {number,duration_ms,outcome,usage}],totals:$totals}') || journal_record=''
   if [ -z "$journal_record" ] || ! python3 "$script_dir/advisor_config.py" --json _journal-record "$journal_record" >/dev/null 2>&1; then
     printf '%s\n' 'ADVISOR TRANSPORT: warning (usage journal write unavailable)' >&2
   fi

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "transport_contract_version": "1.5",
+  "transport_contract_version": "1.6",
   "tested_codex_cli": "codex-cli 0.153.2",
   "defaults": {
     "standard": {
@@ -42,7 +42,7 @@
           "high",
           "xhigh"
         ],
-        "transport_contract_version": "1.5"
+        "transport_contract_version": "1.6"
       }
     }
   ]

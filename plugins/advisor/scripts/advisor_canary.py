@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from advisor_catalog import _pair_is_listed, load_catalog, record_compatibility
-from advisor_settings import load_settings
+from advisor_settings import load_settings, load_live_config
 from advisor_state import (
     CANARY_CLEANUP_GRACE_SECONDS,
     MAX_JSON_BYTES,
@@ -52,6 +52,7 @@ def authorize_canary(
             "codex_version": codex_version,
             "transport_contract_version": TRANSPORT_CONTRACT_VERSION,
             "expires_at": int(time.time()) + 300,
+            "source_revision": load_live_config()["source_revision"],
         }
         descriptor = os.open(
             path,
@@ -81,12 +82,15 @@ def consume_canary(token: str, *, paths: StatePaths | None = None) -> dict[str, 
             "codex_version",
             "transport_contract_version",
             "expires_at",
+            "source_revision",
         }
         if not isinstance(value, dict) or set(value) != required:
             raise ConfigError("invalid canary authorization")
         pair = validate_active_pair({"model": value["model"], "effort": value["effort"]}, initial=True)
         if value["transport_contract_version"] != TRANSPORT_CONTRACT_VERSION:
             raise ConfigError("stale canary authorization")
+        if value["source_revision"] != load_live_config()["source_revision"]:
+            raise ConfigError("stale canary policy revision")
         if (
             not isinstance(value["expires_at"], int)
             or isinstance(value["expires_at"], bool)
@@ -99,6 +103,7 @@ def consume_canary(token: str, *, paths: StatePaths | None = None) -> dict[str, 
             **pair,
             "selection_source": "authorized-synthetic-canary",
             "selection_revision": load_catalog(paths)["revision"],
+            "source_revision": value["source_revision"],
             "transport_contract_version": TRANSPORT_CONTRACT_VERSION,
             "deadline_seconds": load_settings(paths)["deadline_seconds"],
             "codex_version": value["codex_version"],
