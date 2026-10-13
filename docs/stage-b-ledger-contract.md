@@ -46,3 +46,11 @@ Legacy registry không tự migrate: status/init báo version/unsafe state, gi�
 Storage: advisor_ledger_store.py. Identity/state machine/CLI: advisor_ledger.py. Parent/runtime/response/HMAC: admission/acceptance A. Spawn/output/usage/cleanup: run-advisor.sh. Tests mới qua production launcher, fake provider ở boundary, concurrency có barrier, crash/storage fault injection chỉ trong test process qua patch OS API hoặc actual killed launcher; không thêm production test-only flags.
 
 Safety A giữ: aliases standard/specialist/Terra/Sol/Astra low-first, gpt-6-astra, low→medium→high→extra_high (xhigh), primary confirmation, stop sufficient, no retry/fallback, zero-tool, read-only, runtime provenance và bounds.
+
+## Parent inspector streaming (R3)
+
+`advisor_parent.py` validates strict UTF-8 JSONL through EOF before returning available, retaining only parent metadata. Admission retains its 3-second probe; doctor retains 2 seconds. The parser checks its 2.5-second deadline between bounded reads and directory entries; callers retain their outer deadlines. Bounds: 64 MiB per rollout, 1 MiB per line, 100000 records and 100000 directory entries. Oversized workloads fail closed; timing is workload/host-specific.
+
+Unique parent ID, complete-history sandbox consistency (read-only/workspace-write) and one nonempty permission type retain the existing predicates. Duplicate-key/nonfinite JSON, invalid UTF-8, non-object records and non-newline-terminated tails are deliberately rejected as additional hardening; the old jq reader did not guarantee these checks. No successful early return after first safe metadata.
+
+Sessions/rollout opens do not follow links; file UID, regular type and nlink1 are checked. Descriptor-anchored directory streaming checks each entry before accumulation and rejects any traversal/classification IO error. Directory-relative descriptors, before/after inode/size/mtime/ctime checks and uniqueness rescan reject observed append/replacement races. Windows session POSIX mode600 is not required; ledger storage remains Linux-private. Owner-controlled edits after inspection remain outside the existing trust boundary. A faster inspector must still reject the current mixed/unsafe parent; it does not prove live model/provider availability.

@@ -21,6 +21,8 @@ fixtures=$plugin_dir/evals/trigger-cases.json
 installer=$script_dir/install-agents.sh
 inspector=$script_dir/inspect-agent-runtime.sh
 parent_inspector=$script_dir/inspect-parent-runtime.sh
+[ -f "$script_dir/advisor_parent.py" ] && [ ! -L "$script_dir/advisor_parent.py" ] || fail "missing or symlinked parent reader"
+[ -f "$plugin_dir/tests/test_advisor_parent.py" ] || fail "missing parent reader test owner"
 transport=$script_dir/run-advisor.sh
 response_schema=$plugin_dir/advisor-response.schema.json
 audit=$script_dir/advisor-audit.sh

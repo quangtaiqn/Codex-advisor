@@ -4,7 +4,9 @@ Repository-only candidate; not released, deployed, installed or live-verified. A
 
 A-P1-01 provider-schema compatibility and local escalation validation remain intact. Baseline A is ca963d330db8207bded885659e2f9376224f8678. Offline tests do not establish live provider acceptance.
 
-Candidate content digest: `96183d1e3db0986b276aa63af6c78888a302c97cfa41399d7b340e150aea9c1d`.
+Candidate content digest: `23dabf5814a67ec509d33e0260e08c0854d78e5482a8fa6d87e3bc39111f7567`.
+
+R3 replaces parent rollout slurping with bounded strict JSONL streaming. Acceptance still requires a complete, stable history with one matching identity and consistent allowed provenance. Duplicate keys, invalid UTF-8, unfinished tails, unsafe links/owners and resource-bound violations fail closed. Probe deadlines, local escalation and the one-child limit are unchanged. This local correction has scoped offline verification; it does not establish live, installed or public website readiness.
 
 ## Phase-A candidate record — 1.4.9-astra.1
 

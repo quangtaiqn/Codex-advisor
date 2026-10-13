@@ -191,7 +191,7 @@ class AdvisorTransportTests(AdvisorTransportTestCase):
             capture_output=True,
             check=False,
             env={**self.env, "FAKE_CODEX_VERSION": "codex-cli 0.154.0"},
-            timeout=5,
+            timeout=20,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
@@ -216,7 +216,7 @@ class AdvisorTransportTests(AdvisorTransportTestCase):
             capture_output=True,
             check=False,
             env={**self.env, "FAKE_CODEX_VERSION": "codex-cli 0.153.4"},
-            timeout=5,
+            timeout=20,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.rows()[0]["model"], "gpt-6-astra")

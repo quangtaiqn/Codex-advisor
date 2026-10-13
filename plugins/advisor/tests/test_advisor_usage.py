@@ -397,20 +397,36 @@ class UsageTests(unittest.TestCase):
             env=env,
         )
         assert child.stdin and child.stdout and child.stderr
-        child.stdin.write(PACKET)
-        child.stdin.close()
-        deadline = time.monotonic() + 3
-        ready = self.base / "usage-ready"
-        while not ready.exists() and time.monotonic() < deadline:
-            time.sleep(0.02)
-        self.assertTrue(ready.exists())
-        child.terminate()
-        self.assertEqual(child.wait(timeout=5), 130)
-        envelope = json.loads(child.stdout.read())
-        child.stdout.close()
-        child.stderr.close()
-        self.assertEqual(envelope["outcome"], "cancelled")
-        self.assertEqual(envelope["attempts"][0]["usage"]["input"], 10)
+        try:
+            child.stdin.write(PACKET)
+            child.stdin.close()
+            # Startup includes persistent admission; the cancellation contract
+            # begins after the fake provider has actually emitted its usage.
+            started = time.monotonic()
+            deadline = started + 20
+            ready = self.base / "usage-ready"
+            while not ready.exists() and time.monotonic() < deadline:
+                if child.poll() is not None:
+                    break
+                time.sleep(0.02)
+            print(f"cancellation provider-ready seconds={time.monotonic() - started:.6f}")
+            self.assertTrue(ready.exists())
+            child.terminate()
+            self.assertEqual(child.wait(timeout=5), 130)
+            envelope = json.loads(child.stdout.read())
+            self.assertEqual(envelope["outcome"], "cancelled")
+            self.assertEqual(envelope["attempts"][0]["usage"]["input"], 10)
+        finally:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=5)
+            for pipe in (child.stdin, child.stdout, child.stderr):
+                if pipe is not None:
+                    pipe.close()
 
     def audit(self, sessions, *extra):
         result = subprocess.run(

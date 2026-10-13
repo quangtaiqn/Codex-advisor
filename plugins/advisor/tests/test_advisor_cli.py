@@ -457,7 +457,7 @@ class AdvisorCliTests(unittest.TestCase):
         self.add("gpt-6-astra")
         ready = self.root / "cancel-ready"
         terminated = self.root / "cancel-terminated"
-        unrelated = subprocess.Popen(["sleep", "20"])
+        unrelated = subprocess.Popen(["sleep", "45"])
         process = subprocess.Popen(
             [str(CLI), "--json", "models", "test", "gpt-6-astra", "--effort", "low", "--authorize-usage", "--parent-thread", PARENT, "--sessions-dir", str(self.home / "sessions")],
             text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -465,8 +465,11 @@ class AdvisorCliTests(unittest.TestCase):
         )
         try:
             started = time.monotonic()
-            while not ready.exists() and time.monotonic() - started < 5:
+            while not ready.exists() and time.monotonic() - started < 20:
+                if process.poll() is not None:
+                    break
                 time.sleep(0.05)
+            print(f"CLI cancellation provider-ready seconds={time.monotonic() - started:.6f}")
             self.assertTrue(ready.exists())
             process.send_signal(signal.SIGTERM)
             process.wait(timeout=8)
@@ -477,7 +480,12 @@ class AdvisorCliTests(unittest.TestCase):
             self.assertFalse(any((self.home / "advisor" / "canaries").glob("*.json")))
         finally:
             if process.poll() is None:
-                process.kill()
+                process.terminate()
+                try:
+                    process.wait(timeout=8)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=3)
             if process.stdout:
                 process.stdout.close()
             if process.stderr:

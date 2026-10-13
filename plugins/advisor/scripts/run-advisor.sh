@@ -61,7 +61,7 @@ import sys
 raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
 PY
 command -v jq >/dev/null 2>&1 || fail "jq is unavailable"
-for helper in advisor_ledger.py advisor_ledger_store.py advisor_acceptance.py advisor_accounting.py advisor_config.py advisor_state.py advisor_catalog.py advisor_settings.py advisor_journal.py advisor_discovery.py advisor_canary.py advisor_doctor.py advisor_process.py advisor_transport.py advisor_admission.py inspect-agent-runtime.sh inspect-parent-runtime.sh; do
+for helper in advisor_ledger.py advisor_ledger_store.py advisor_parent.py advisor_acceptance.py advisor_accounting.py advisor_config.py advisor_state.py advisor_catalog.py advisor_settings.py advisor_journal.py advisor_discovery.py advisor_canary.py advisor_doctor.py advisor_process.py advisor_transport.py advisor_admission.py inspect-agent-runtime.sh inspect-parent-runtime.sh; do
   [ -f "$script_dir/$helper" ] && [ ! -L "$script_dir/$helper" ] || fail "installed Advisor helper is unsafe"
 done
 if [ -n "$canary_token" ]; then
