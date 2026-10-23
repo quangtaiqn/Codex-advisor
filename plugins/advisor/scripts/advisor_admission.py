@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import stat
 from pathlib import Path
 from typing import Any
@@ -115,11 +116,61 @@ def authorize(level: str, receipt_path: Path, packet: Path, parent: str,
     if len(matches) != 1:
         raise ConfigError("ambiguous previous child")
     rows = [json.loads(line, object_pairs_hook=_duplicate_key) for line in bounded_file(matches[0]).splitlines() if line.strip()]
+    contexts = [row["payload"] for row in rows if row.get("type") == "turn_context"]
+    session_cwd = next(row["payload"].get("cwd") for row in rows if row.get("type") == "session_meta")
+    def native_turn(metadata: Any) -> bool:
+        if not isinstance(metadata, dict) or not isinstance(session_cwd, str):
+            return False
+        turn = metadata.get("turn_id")
+        return (isinstance(turn, str) and bool(turn)
+                and any(c.get("turn_id") == turn and c.get("cwd") == session_cwd for c in contexts))
+
+    def consultation(payload: dict[str, Any]) -> bool:
+        content = payload.get("content")
+        if (not isinstance(content, list) or len(content) != 1 or not isinstance(content[0], dict)
+                or content[0].get("type") != "input_text" or not isinstance(content[0].get("text"), str)):
+            return False
+        if "internal_chat_message_metadata_passthrough" not in payload:
+            return True  # Legacy untyped prompts have a distinct compatibility branch.
+        metadata = payload["internal_chat_message_metadata_passthrough"]
+        return native_turn(metadata) and metadata.get("content_item_kinds") == ["user.text"]
+
+    def bootstrap(payload: dict[str, Any]) -> bool:
+        metadata = payload.get("internal_chat_message_metadata_passthrough")
+        content = payload.get("content")
+        if not native_turn(metadata) or not isinstance(content, list):
+            return False
+        kinds = metadata.get("content_item_kinds")
+        if kinds == ["environments.environment_context"] and len(content) == 1:
+            pass
+        elif kinds == ["agents_md.instructions", "environments.environment_context"] and len(content) == 2:
+            text = content[0].get("text") if isinstance(content[0], dict) else None
+            if not isinstance(text, str) or not re.fullmatch(
+                    r"# AGENTS\.md instructions\n\n<INSTRUCTIONS>\n(?:(?!</?INSTRUCTIONS\b).)*\n</INSTRUCTIONS>\s*", text, re.S):
+                return False
+        else:
+            return False
+        if not all(isinstance(c, dict) and c.get("type") == "input_text" and isinstance(c.get("text"), str)
+                   and "BEGIN ADVISOR PACKET" not in c["text"] and "END ADVISOR PACKET" not in c["text"] for c in content):
+            return False
+        environment = re.fullmatch(
+            r"<environment_context>\s*<cwd>([^<>]*)</cwd>(?:(?!</?(?:environment_context|cwd)\b|<!--|-->).)*</environment_context>\s*",
+            content[-1]["text"], re.S)
+        return environment is not None and environment[1] == session_cwd
+
     def texts(message_role: str) -> list[str]:
         result = []
+        bootstrap_seen = False
         for row in rows:
             p = row.get("payload", {})
             if row.get("type") == "response_item" and p.get("type") == "message" and p.get("role") == message_role:
+                if message_role == "user" and bootstrap(p):
+                    if bootstrap_seen or result:
+                        raise ConfigError("previous bootstrap context order mismatch")
+                    bootstrap_seen = True
+                    continue
+                if message_role == "user" and not consultation(p):
+                    raise ConfigError("previous typed user context or prompt mismatch")
                 result.append("".join(c.get("text", "") for c in p.get("content", []) if c.get("type") in {"input_text", "output_text"}))
         return result
     users, assistants = texts("user"), texts("assistant")

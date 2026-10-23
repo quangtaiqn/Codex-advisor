@@ -6,8 +6,10 @@ import importlib
 import json
 import os
 import tempfile
+import threading
 import time
 import unittest
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -119,6 +121,57 @@ class ParentInspectorTests(unittest.TestCase):
             ),
             flush=True,
         )
+
+    def test_slow_metadata_full_namespace_stays_inside_parent_budget(self):
+        helper = importlib.import_module("advisor_parent")
+        names = {f"noise-{index:03d}.txt" for index in range(80)}
+        for name in sorted(names):
+            (self.sessions / name).write_bytes(b"generated\n")
+        real_scandir = helper.os.scandir
+        calls = Counter()
+        lock = threading.Lock()
+
+        class SlowEntry:
+            def __init__(self, entry):
+                self.entry = entry
+
+            def __getattr__(self, name):
+                return getattr(self.entry, name)
+
+            def stat(self, **kwargs):
+                time.sleep(0.02)
+                result = self.entry.stat(**kwargs)
+                with lock:
+                    calls[self.entry.name] += 1
+                return result
+
+        class Directory:
+            def __init__(self, fd):
+                self.iterator = real_scandir(fd)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.iterator.close()
+
+            def __iter__(self):
+                for entry in self.iterator:
+                    yield SlowEntry(entry) if entry.name in names else entry
+
+        with patch.object(helper.os, "scandir", side_effect=Directory):
+            started = time.monotonic()
+            result = helper.inspect_parent(self.sessions, THREAD)
+            elapsed = time.monotonic() - started
+        self.assertEqual(
+            result,
+            {"status": "available", "thread_id": THREAD,
+             "sandbox_policy_type": "workspace-write",
+             "permission_profile_type": "managed"},
+        )
+        self.assertEqual(set(calls), names)
+        self.assertTrue(all(count >= 2 for count in calls.values()))
+        self.assertLess(elapsed, 2.5)
 
     def test_late_unsafe_mixed_and_conflicting_metadata_are_rejected(self):
         self.available()

@@ -1,10 +1,20 @@
-# Phase-B candidate changes — 1.4.9-astra.2
+# Phase-B candidate changes — 1.4.9-astra.3
+
+## Native CLI bootstrap context
+
+Runtime inspection and receipt admission now distinguish a single native bootstrap
+record from the one consultation prompt. Bootstrap exclusion requires known
+content-item kinds, expected instruction/environment wrappers, matching isolated
+cwd and turn metadata, and placement before the prompt. Extra prompts, forged or
+misplaced context, tools, model/effort changes and unsafe provenance still fail
+closed. This addresses the observed CLI 0.162.1 message-count failure; it does not
+claim a historical `rollout_changed` fix or accepted installed E2E proof.
 
 Repository-only candidate; not released, deployed, installed or live-verified. Adds durable owner-private reservations, canonical replay prevention, consumed receipts, explicit reconcile/transfer and conservative A migration. Envelope4/transport1.6; no retry/fallback or live capability/publication claim. Every entry still starts Astra/low with adjacent local escalation and the existing read-only/zero-tool safety guards.
 
 A-P1-01 provider-schema compatibility and local escalation validation remain intact. Baseline A is ca963d330db8207bded885659e2f9376224f8678. Offline tests do not establish live provider acceptance.
 
-Candidate content digest: `23dabf5814a67ec509d33e0260e08c0854d78e5482a8fa6d87e3bc39111f7567`.
+Candidate content digest: `48b00edc0011cd1137a015322a45f5f35be4a69280a4d7dd747bd4b14916c404`.
 
 R3 replaces parent rollout slurping with bounded strict JSONL streaming. Acceptance still requires a complete, stable history with one matching identity and consistent allowed provenance. Duplicate keys, invalid UTF-8, unfinished tails, unsafe links/owners and resource-bound violations fail closed. Probe deadlines, local escalation and the one-child limit are unchanged. This local correction has scoped offline verification; it does not establish live, installed or public website readiness.
 

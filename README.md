@@ -1,6 +1,6 @@
 # Codex Advisor
 
-Repository-only candidate `1.4.9-astra.2` integrates the fork's modules and safety fixes with the local Astra ladder. It is not installed, deployed, released or live-runtime verified.
+Private candidate `1.4.9-astra.3` integrates the fork's modules and safety fixes with the local Astra ladder, including strict recognition of native CLI bootstrap context. Accepted installed E2E proof remains pending.
 
 ## Install and supported surfaces
 

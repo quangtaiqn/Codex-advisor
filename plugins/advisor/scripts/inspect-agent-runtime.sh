@@ -43,13 +43,44 @@ if jq -e -s '
 fi
 
 jq -ce -s --arg id "$thread_id" --arg expected_parent "$expected_parent" --arg expected_role "$expected_role" --arg expected_model "$expected_model" --arg expected_effort "$expected_effort" '
+  # CLI bootstrap context is persisted as user content, distinct from user.text.
+  # Only known typed content in the same isolated cwd/turn may be excluded.
+  def native_turn($turns; $cwd):
+    . as $meta |
+    ($cwd|type)=="string" and ($meta|type)=="object" and
+    ($meta.turn_id|type)=="string" and ($meta.turn_id|length)>0 and
+    any($turns[]; .turn_id==$meta.turn_id and .cwd==$cwd);
+  def environment($cwd):
+    [capture("\\A<environment_context>\\s*<cwd>(?<cwd>[^<>]*)</cwd>(?:(?!</?(?:environment_context|cwd)\\b|<!--|-->).)*</environment_context>\\s*\\z";"m")] as $matches |
+    ($matches|length)==1 and $matches[0].cwd==$cwd;
+  def prompt_content:
+    .content as $c |
+    ($c|type)=="array" and ($c|length)==1 and ($c[0]|type)=="object" and
+    $c[0].type=="input_text" and ($c[0].text|type)=="string";
+  def consultation($turns; $cwd):
+    prompt_content and
+    (if has("internal_chat_message_metadata_passthrough") then
+       .internal_chat_message_metadata_passthrough as $meta |
+       ($meta|native_turn($turns; $cwd)) and $meta.content_item_kinds==["user.text"]
+     else true end);
+  def bootstrap($turns; $cwd):
+    .internal_chat_message_metadata_passthrough as $meta | .content as $c |
+    ($meta|native_turn($turns; $cwd)) and ($c|type)=="array" and
+    (($meta.content_item_kinds==["environments.environment_context"] and ($c|length)==1) or
+     ($meta.content_item_kinds==["agents_md.instructions","environments.environment_context"] and ($c|length)==2 and
+      ($c[0].text|test("\\A# AGENTS[.]md instructions\\n\\n<INSTRUCTIONS>\\n(?:(?!</?INSTRUCTIONS\\b).)*\\n</INSTRUCTIONS>\\s*\\z";"m")))) and
+    all($c[]; .type=="input_text" and (.text|type)=="string" and
+        (.text|contains("BEGIN ADVISOR PACKET")|not) and (.text|contains("END ADVISOR PACKET")|not)) and
+    ($c[-1].text|environment($cwd));
   [ .[] | select(.type=="session_meta") | .payload ] as $s |
   [ .[] | select(.type=="turn_context") | .payload ] as $t |
   if ($s|length)!=1 or ($t|length)==0 then error("missing metadata") else
     [$t[].model] as $m | [$t[].effort] as $e |
     [$t[].sandbox_policy.type] as $b | [$t[].permission_profile.type] as $p |
-    [ .[] | select(.type=="response_item" and .payload.type=="message" and .payload.role=="user") |
-      [.payload.content[]? | select(.type=="input_text" or .type=="output_text") | .text] | join("") ] as $prompts |
+    [ .[] | select(.type=="response_item" and .payload.type=="message" and .payload.role=="user") | .payload ] as $users |
+    [range(0; $users|length) | select($users[.]|bootstrap($t; $s[0].cwd))] as $bootstrap_indices |
+    [$users[] | select((bootstrap($t; $s[0].cwd) or consultation($t; $s[0].cwd))|not)] as $invalid_users |
+    [$users[] | select(consultation($t; $s[0].cwd)) | .content[0].text] as $prompts |
     [ .[] | .. | objects | .type? |
       select(. == "function_call" or . == "custom_tool_call" or . == "collab_tool_call" or . == "tool_call" or . == "tool_use") ] as $tool_events |
     [ .[] | .. | objects |
@@ -57,6 +88,8 @@ jq -ce -s --arg id "$thread_id" --arg expected_parent "$expected_parent" --arg e
     if $s[0].id!=$id or $s[0].source!="exec" or
        ($s[0].originator!="codex_exec" and $s[0].originator!="Codex Desktop") or
        ($s[0].agent_role // null)!=null or ($s[0].parent_thread_id // null)!=null or
+       ($bootstrap_indices!=[] and $bootstrap_indices!=[0]) or
+       ($invalid_users|length)!=0 or
        ($prompts|length)!=1 or ($prompts[0] | startswith("You are " + $expected_role + ", a consultation-only technical advisor.\n") | not) or
        ($m|unique)!=[$expected_model] or ($e|unique)!=[$expected_effort] or
        ($b|unique)!=["read-only"] or ($p|unique|length)!=1 or

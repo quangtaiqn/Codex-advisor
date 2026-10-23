@@ -1,6 +1,6 @@
 {
   "name": "advisor",
-  "version": "1.4.9-astra.2",
+  "version": "1.4.9-astra.3",
   "description": "Astra low-first, read-only advice for material technical decisions in Codex CLI and Codex desktop.",
   "author": {
     "name": "David Schmidt / Zero Delta LLC"

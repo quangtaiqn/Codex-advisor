@@ -20,7 +20,7 @@ for name in ('advisor-terra','advisor-sol','advisor-astra'):
     for phrase in ('Use zero tools.','Do not call any tool or function','Do not spawn or route another agent','research-first','FOLLOW-UP AREAS'):
         assert phrase in role['developer_instructions'],(name,phrase)
 manifest=json.loads((plugin/'.codex-plugin/plugin.json').read_text())
-assert manifest['name']=='advisor' and manifest['version']=='1.4.9-astra.2'
+assert manifest['name']=='advisor' and manifest['version']=='1.4.9-astra.3'
 assert manifest['license']=='MIT' and manifest['skills']=='./skills/'
 assert not any(k in manifest for k in ('hooks','apps','mcpServers','homepage','repository'))
 interface=manifest['interface'];assert interface['category']=='Developer Tools'

@@ -133,6 +133,10 @@ events = [
     {"type": "session_meta", "payload": {"id": child, "source": "exec", "originator": "codex_exec"}},
     {"type": "turn_context", "payload": {"model": runtime_model, "effort": runtime_effort, "sandbox_policy": {"type": "read-only"}, "permission_profile": {"type": "managed"}}},
 ]
+if case.startswith("bootstrap-"):
+    events[0]["payload"]["cwd"] = str(workdir)
+    events[1]["payload"]["cwd"] = str(workdir)
+    events[1]["payload"]["turn_id"] = child
 if case == "tool":
     events.append({"type": "function_call", "name": "forbidden"})
 if case == "reroute":
@@ -149,7 +153,7 @@ response = {
 }
 if case == "mutate-retry" and attempt == 1:
     response.pop("risks")
-if case in {"adjacent", "ambiguous-adjacent"}:
+if case in {"adjacent", "ambiguous-adjacent", "bootstrap-adjacent"}:
     response["escalation"] = {"next_level": {"low":"medium", "medium":"high", "high":"extra_high", "xhigh":None}[effort],
         "reason":"material ambiguity", "unresolved_difficulty":"ordering remains unresolved", "required_resolution":"compare state traces"}
 if case == "skip": response["escalation"]["next_level"] = "high"
@@ -168,6 +172,54 @@ events += [
     {"type":"response_item", "payload":{"type":"message", "role":"user", "content":[{"type":"input_text", "text":prompt}]}},
     {"type":"response_item", "payload":{"type":"message", "role":"assistant", "content":[{"type":"output_text", "text":json.dumps(response)}]}}
 ]
+if case.startswith("bootstrap-"):
+    bootstrap = {"type":"response_item", "payload":{
+        "type":"message", "role":"user",
+        "internal_chat_message_metadata_passthrough":{
+            "content_item_kinds":["agents_md.instructions", "environments.environment_context"],
+            "turn_id":child},
+        "content":[
+            {"type":"input_text", "text":"# AGENTS.md instructions\n\n<INSTRUCTIONS>\nRead-only ownership policy.\nFollow the exact advisor packet.\n</INSTRUCTIONS>"},
+            {"type":"input_text", "text":f"<environment_context>\n<cwd>{workdir}</cwd>\n<shell>sh</shell>\n</environment_context>"}]}}
+    events[-2]["payload"]["internal_chat_message_metadata_passthrough"] = {
+        "content_item_kinds":["user.text"], "turn_id":child}
+    events.insert(len(events)-2, bootstrap)
+    if case == "bootstrap-extra-prompt":
+        events.insert(len(events)-1, {"type":"response_item", "payload":{
+            "type":"message", "role":"user", "content":[{"type":"input_text", "text":prompt}]}})
+    if case == "bootstrap-forged-context":
+        bootstrap["payload"]["content"][0]["text"] = prompt
+    if case == "bootstrap-wrong-cwd":
+        bootstrap["payload"]["content"][1]["text"] = "<environment_context><cwd>different</cwd></environment_context>"
+    if case == "bootstrap-repeated-wrapper-extra":
+        cwd = str(workdir)
+        bootstrap["payload"]["content"][1]["text"] = (
+            f"<environment_context><cwd>{cwd}</cwd></environment_context> "
+            "EXTRA text between wrappers "
+            "<environment_context></environment_context>"
+        )
+    if case == "bootstrap-cwd-comment":
+        bootstrap["payload"]["content"][1]["text"] = (
+            f"<environment_context><!-- <cwd>{workdir}</cwd> --></environment_context>"
+        )
+    if case in {
+        "bootstrap-sole-environment-context",
+        "bootstrap-sole-user-wrong-turn",
+        "bootstrap-sole-unknown-kind",
+    }:
+        events.remove(bootstrap)
+        sole_prompt = events[-2]["payload"]
+        kinds = {
+            "bootstrap-sole-environment-context": ["environments.environment_context"],
+            "bootstrap-sole-user-wrong-turn": ["user.text"],
+            "bootstrap-sole-unknown-kind": ["fixture.unknown"],
+        }[case]
+        turn_id = "00000000-0000-7000-8000-000000000099" if case == "bootstrap-sole-user-wrong-turn" else child
+        sole_prompt["internal_chat_message_metadata_passthrough"] = {
+            "content_item_kinds": kinds, "turn_id": turn_id}
+    if case == "bootstrap-out-of-order":
+        events.remove(bootstrap)
+        events.insert(len(events)-1, bootstrap)
 (sessions / f"rollout-fake-{child}.jsonl").write_text("".join(json.dumps(row)+"\n" for row in events))
 if case == "duplicate-response":
     output.write_text(json.dumps(response)[:-1] + ',"risks":"duplicate"}')

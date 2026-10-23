@@ -8,6 +8,7 @@ import os
 import re
 import stat
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 
 MAX_FILE_BYTES = 64 * 1024 * 1024
@@ -53,35 +54,56 @@ def select_rollout(root, thread, deadline):
         # fwalk ignores some traversal errors and buffers whole directories.
         # Inspect each entry; incomplete enumeration cannot prove uniqueness.
         with os.scandir(fd) as items:
-            for entry in items:
-                check_deadline(deadline)
-                entries += 1
-                if entries > MAX_ENTRIES:
-                    raise ParentUnavailable("entry_bound")
-                name = entry.name
-                info = entry.stat(follow_symlinks=False)
-                if name.startswith("rollout-") and name.endswith(
-                    "-" + thread + ".jsonl"
-                ):
-                    if selected is not None:
-                        raise ParentUnavailable("ambiguous_rollout")
-                    selected = (os.dup(fd), name, Path(directory) / name)
-                if stat.S_ISDIR(info.st_mode):
-                    child = os.open(
-                        name,
-                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                        dir_fd=fd,
-                    )
-                    try:
-                        opened = os.fstat(child)
-                        if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
-                            raise ParentUnavailable("directory_changed")
-                        visit(child, Path(directory) / name)
-                    finally:
-                        os.close(child)
+            iterator = iter(items)
+            while True:
+                pending = []
+                try:
+                    # Bound each directory batch and the shared worker pool.
+                    for _ in range(16):
+                        try:
+                            entry = next(iterator)
+                        except StopIteration:
+                            break
+                        check_deadline(deadline)
+                        entries += 1
+                        if entries > MAX_ENTRIES:
+                            raise ParentUnavailable("entry_bound")
+                        pending.append((entry, metadata.submit(entry.stat, follow_symlinks=False)))
+                    if not pending:
+                        break
+                    for entry, future in pending:
+                        check_deadline(deadline)
+                        info = future.result()
+                        check_deadline(deadline)
+                        name = entry.name
+                        if name.startswith("rollout-") and name.endswith(
+                            "-" + thread + ".jsonl"
+                        ):
+                            if selected is not None:
+                                raise ParentUnavailable("ambiguous_rollout")
+                            selected = (os.dup(fd), name, Path(directory) / name)
+                        if stat.S_ISDIR(info.st_mode):
+                            child = os.open(
+                                name,
+                                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                dir_fd=fd,
+                            )
+                            try:
+                                opened = os.fstat(child)
+                                if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                                    raise ParentUnavailable("directory_changed")
+                                visit(child, Path(directory) / name)
+                            finally:
+                                os.close(child)
+                finally:
+                    # Finish metadata reads before this directory fd can close.
+                    for _entry, future in pending:
+                        future.cancel()
+                    wait([future for _entry, future in pending])
 
     try:
-        visit(root, Path("."))
+        with ThreadPoolExecutor(max_workers=4) as metadata:
+            visit(root, Path("."))
         if selected is None:
             raise ParentUnavailable("missing_rollout")
         return selected

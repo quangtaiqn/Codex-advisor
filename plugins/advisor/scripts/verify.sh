@@ -82,4 +82,4 @@ for shell_file in "$script_dir"/*.sh "$repo_dir/public-release"/*.sh "$verify_di
 done
 [ "$(git -C "$repo_dir" ls-files --stage plugins/advisor/scripts/inspect-parent-runtime.sh | awk '{print $1}')" = 100644 ] || fail "parent inspector must remain mode 100644"
 pass "all shell syntax and stderr-progress contract"
-printf '%s\n' "VERIFY PASSED: Advisor 1.4.9-astra.2 phase-B candidate contract"
+printf '%s\n' "VERIFY PASSED: Advisor 1.4.9-astra.3 phase-B candidate contract"

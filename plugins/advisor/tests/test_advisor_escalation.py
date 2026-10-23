@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import subprocess
+import sys
 import unittest
 
 if __package__:
@@ -114,6 +115,7 @@ class AdvisorEscalationTests(AdvisorTransportTestCase):
 
     def test_invalid_responses_and_runtime_guards_are_one_attempt_terminal(self):
         for case in ("skip","blank","malformed","duplicate-response","wrong-model","wrong-effort","wrong-sandbox","wrong-permission","wrong-provenance","duplicate-child","reroute","tool",
+                     "bootstrap-extra-prompt", "bootstrap-forged-context", "bootstrap-wrong-cwd", "bootstrap-out-of-order",
                      "blank-escalation-reason", "blank-escalation-unresolved_difficulty", "blank-escalation-required_resolution"):
             self.invocations.unlink(missing_ok=True)
             result=self.run_transport("--level","low",case=case)
@@ -124,6 +126,161 @@ class AdvisorEscalationTests(AdvisorTransportTestCase):
                 self.assertEqual(json.loads(result.stdout)["attempts"][0]["outcome"], "rejected_response")
                 self.assertIn("escalation request must explain the unresolved difficulty", result.stderr)
         self.assertEqual(self.rows()[0]["effort"],"low")
+
+    def test_bootstrap_classification_negatives_fail_at_launcher_boundary(self):
+        cases = (
+            "bootstrap-repeated-wrapper-extra",
+            "bootstrap-cwd-comment",
+            "bootstrap-sole-environment-context",
+            "bootstrap-sole-user-wrong-turn",
+            "bootstrap-sole-unknown-kind",
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                prior_count = len(self.rows())
+                result = self.run_transport("--level", "low", case=case)
+                self.assertEqual(len(self.rows()) - prior_count, 1, case)
+                self.assertNotEqual(result.returncode, 0, case)
+                envelope = json.loads(result.stdout)
+                self.assertEqual(envelope["status"], "unavailable", case)
+                self.assertEqual(len(envelope["attempts"]), 1, case)
+                self.assertEqual(envelope["attempts"][0]["number"], 1, case)
+                self.assertEqual(envelope["attempts"][0]["outcome"], "runtime_failed", case)
+                self.assertNotIn("Traceback", result.stderr, case)
+
+    def test_native_bootstrap_context_preserves_one_prompt_and_receipt_admission(self):
+        # CLI 0.162.1 persists host-generated context as a separate user record.
+        # Exercise both runtime inspection and the later authenticated admission.
+        initial = self.run_transport("--level", "low", case="bootstrap-adjacent")
+        previous = self.receipt(initial)
+        result = self.run_transport("--level", "medium", "--previous-result", str(previous),
+                                    "--authorize-escalation", case="bootstrap-valid")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["outcome"], "accepted")
+        self.assertEqual(payload["runtime"]["parent_thread_id"], PARENT)
+        self.assertEqual([row["effort"] for row in self.rows()], ["low", "medium"])
+        self.assertEqual(len(payload["attempts"]), 1)
+
+    def test_admission_rejects_mutated_bootstrap_records_before_reescalation(self):
+        previous = self.receipt(self.run_transport("--level", "low", case="bootstrap-adjacent"))
+        receipt_bytes = previous.read_bytes()
+        receipt = json.loads(receipt_bytes)
+        child = receipt["runtime"]["thread_id"]
+        matches = list((self.home / "sessions").rglob(f"rollout-*-{child}.jsonl"))
+        self.assertEqual(len(matches), 1)
+        rollout = matches[0]
+        original_rollout = rollout.read_bytes()
+        packet_path = self.root / "admission-packet.txt"
+        packet_path.write_text(self.fixture_packets[self.last_issue], encoding="utf-8")
+        packet_bytes = packet_path.read_bytes()
+        self.assertEqual(hashlib.sha256(packet_bytes).hexdigest(), receipt["packet_identity"]["sha256"])
+        source_revision = str(receipt["selection"]["source_revision"])
+        command = [
+            sys.executable, str(self.plugin_root / "scripts" / "advisor_admission.py"),
+            "--parent", PARENT, "--sessions-dir", str(self.home / "sessions"),
+            "--level", "medium", "--previous-result", str(previous),
+            "--packet", str(packet_path), "--source-revision", source_revision,
+        ]
+
+        def run_admission():
+            return subprocess.run(command, env=self.env, text=True, capture_output=True,
+                                  check=False, timeout=10)
+
+        baseline = run_admission()
+        self.assertEqual(baseline.returncode, 0, baseline.stderr + baseline.stdout)
+        self.assertEqual(json.loads(baseline.stdout)["previous_child"], child)
+        self.assertEqual(len(self.rows()), 1)
+
+        original_events = [json.loads(line) for line in original_rollout.splitlines() if line]
+        original_users = [
+            row for row in original_events
+            if row.get("type") == "response_item"
+            and row.get("payload", {}).get("type") == "message"
+            and row.get("payload", {}).get("role") == "user"
+        ]
+        original_prompt = next(
+            row for row in original_users
+            if row["payload"].get("internal_chat_message_metadata_passthrough", {}).get("content_item_kinds") == ["user.text"]
+        )
+        exact_prompt = "".join(
+            item.get("text", "") for item in original_prompt["payload"]["content"]
+            if item.get("type") in {"input_text", "output_text"}
+        )
+        cases = (
+            "bootstrap-repeated-wrapper-extra",
+            "bootstrap-cwd-comment",
+            "bootstrap-sole-environment-context",
+            "bootstrap-sole-user-wrong-turn",
+            "bootstrap-sole-unknown-kind",
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                events = [json.loads(line) for line in original_rollout.splitlines() if line]
+                users = [
+                    row for row in events
+                    if row.get("type") == "response_item"
+                    and row.get("payload", {}).get("type") == "message"
+                    and row.get("payload", {}).get("role") == "user"
+                ]
+                bootstrap = next(
+                    row for row in users
+                    if row["payload"].get("internal_chat_message_metadata_passthrough", {}).get("content_item_kinds")
+                    == ["agents_md.instructions", "environments.environment_context"]
+                )
+                prompt = next(
+                    row for row in users
+                    if row["payload"].get("internal_chat_message_metadata_passthrough", {}).get("content_item_kinds")
+                    == ["user.text"]
+                )
+                session_cwd = next(
+                    row["payload"]["cwd"] for row in events if row.get("type") == "session_meta"
+                )
+                if case == "bootstrap-repeated-wrapper-extra":
+                    bootstrap["payload"]["content"][-1]["text"] = (
+                        f"<environment_context><cwd>{session_cwd}</cwd></environment_context> "
+                        "EXTRA text between wrappers <environment_context></environment_context>"
+                    )
+                elif case == "bootstrap-cwd-comment":
+                    bootstrap["payload"]["content"][-1]["text"] = (
+                        f"<environment_context><!-- <cwd>{session_cwd}</cwd> --></environment_context>"
+                    )
+                else:
+                    events.remove(bootstrap)
+                    kinds = {
+                        "bootstrap-sole-environment-context": ["environments.environment_context"],
+                        "bootstrap-sole-user-wrong-turn": ["user.text"],
+                        "bootstrap-sole-unknown-kind": ["fixture.unknown"],
+                    }[case]
+                    turn_id = "00000000-0000-7000-8000-000000000099" if case == "bootstrap-sole-user-wrong-turn" else child
+                    prompt["payload"]["internal_chat_message_metadata_passthrough"] = {
+                        "content_item_kinds": kinds, "turn_id": turn_id}
+                observed_prompt = "".join(
+                    item.get("text", "") for item in prompt["payload"]["content"]
+                    if item.get("type") in {"input_text", "output_text"}
+                )
+                self.assertEqual(observed_prompt, exact_prompt, case)
+                mutated = bytes([10]).join(
+                    json.dumps(row, separators=(",", ":")).encode("utf-8") for row in events
+                ) + bytes([10])
+                try:
+                    rollout.write_bytes(mutated)
+                    result = run_admission()
+                    self.assertNotEqual(result.returncode, 0, case)
+                    envelope = json.loads(result.stdout)
+                    self.assertEqual(envelope["status"], "unavailable", case)
+                    self.assertNotIn("Traceback", result.stderr, case)
+                    error = envelope.get("error", "")
+                    self.assertNotIn("acceptance proof", error, case)
+                    self.assertNotIn("source mismatch", error, case)
+                    self.assertNotIn("packet identity", error, case)
+                    self.assertEqual(previous.read_bytes(), receipt_bytes, case)
+                    self.assertEqual(packet_path.read_bytes(), packet_bytes, case)
+                    self.assertEqual(len(self.rows()), 1, case)
+                finally:
+                    rollout.write_bytes(original_rollout)
+        self.assertEqual(rollout.read_bytes(), original_rollout)
 
     def test_local_response_semantics_remain_strict_with_flat_provider_schema(self):
         response = {"recommendation":"path", "why":"reason", "strongest_objection":"risk",
