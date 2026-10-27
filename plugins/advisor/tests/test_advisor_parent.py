@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
 import json
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -387,6 +389,215 @@ class ParentInspectorTests(unittest.TestCase):
         with patch.object(helper.os, "scandir", side_effect=Directory):
             with self.assertRaises(OSError):
                 helper.inspect_parent(self.sessions, THREAD)
+
+
+@unittest.skipUnless(os.environ.get("TEST_WINDOWS_PARENT_ROOT"), "Windows NTFS fixture not configured")
+class WindowsNativeParentInspectorTests(unittest.TestCase):
+    """Exercise the public parser on a private, Windows-owned NTFS fixture."""
+
+    def setUp(self):
+        base = Path(os.environ["TEST_WINDOWS_PARENT_ROOT"])
+        self.assertTrue(base.is_dir(), f"Missing TEST_WINDOWS_PARENT_ROOT: {base}")
+        self.temporary = tempfile.TemporaryDirectory(prefix="parent-native-", dir=base)
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.sessions = self.root / "sessions"
+        self.alias_dir = self.root / "alias"
+        self.sessions.mkdir()
+        self.alias_dir.mkdir()
+        self.name = f"rollout-generated-{THREAD}.jsonl"
+        self.rollout = self.sessions / self.name
+        self.alias = self.alias_dir / self.name
+        self.safe = [
+            {"type": "session_meta", "payload": {"id": THREAD}},
+            {"type": "turn_context", "payload": {
+                "sandbox_policy": {"type": "workspace-write"},
+                "permission_profile": {"type": "managed"},
+            }},
+        ]
+        self.write(self.safe)
+        os.link(self.rollout, self.alias)
+        self.windows_acl(self.root, self.sessions, self.alias_dir, self.rollout)
+        self.assertEqual(self.rollout.stat().st_nlink, 2, "Fixture needs two real NTFS links")
+        self.assertEqual(self.rollout.stat().st_uid, os.getuid())
+
+    def write(self, rows):
+        self.rollout.write_bytes(b"".join(json.dumps(row).encode("utf-8") + b"\n" for row in rows))
+
+    def windows_acl(self, *paths, everyone_write=False):
+        windows_paths = []
+        for path in paths:
+            converted = subprocess.run(
+                ["wslpath", "-w", str(path)], capture_output=True, text=True,
+                check=True, timeout=10,
+            )
+            windows_paths.append("'" + converted.stdout.strip().replace("'", "''") + "'")
+        mode = "$true" if everyone_write else "$false"
+        script = f"""
+$env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')
+$ErrorActionPreference = 'Stop'
+$current = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$system = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+$admins = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+foreach ($p in @({','.join(windows_paths)})) {{
+    if ({mode}) {{
+        & "$env:WINDIR\\System32\\icacls.exe" $p /grant '*S-1-1-0:(W)' /Q | Out-Null
+        if ($LASTEXITCODE -ne 0) {{ throw 'Fixture DACL update failed' }}
+        continue
+    }} else {{
+        $acl = Get-Acl -LiteralPath $p
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($old in @($acl.Access)) {{ $acl.RemoveAccessRuleAll($old) }}
+        $acl.SetOwner($current)
+        $inherit = if ([System.IO.Directory]::Exists($p)) {{
+            [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
+        }} else {{ [System.Security.AccessControl.InheritanceFlags]::None }}
+        foreach ($sid in @($current, $system, $admins)) {{
+            $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+                $sid, [System.Security.AccessControl.FileSystemRights]::FullControl,
+                $inherit, [System.Security.AccessControl.PropagationFlags]::None,
+                [System.Security.AccessControl.AccessControlType]::Allow)
+            $acl.AddAccessRule($rule)
+        }}
+    }}
+    Set-Acl -LiteralPath $p -AclObject $acl
+}}
+"""
+        encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+        completed = subprocess.run(
+            ["/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+             "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def available(self):
+        helper = importlib.import_module("advisor_parent")
+        self.assertEqual(helper.inspect_parent(self.sessions, THREAD), {
+            "status": "available", "thread_id": THREAD,
+            "sandbox_policy_type": "workspace-write",
+            "permission_profile_type": "managed",
+        })
+
+    def unavailable(self):
+        helper = importlib.import_module("advisor_parent")
+        # The CLI also redacts JSON/encoding/OS errors from the strict parser.
+        with self.assertRaises((ValueError, OSError)):
+            helper.inspect_parent(self.sessions, THREAD)
+
+    def test_safe_same_basename_two_link_mirror_is_available(self):
+        started = time.monotonic()
+        self.available()
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, 2.5)
+        print(json.dumps({"native_fixture_bytes": self.rollout.stat().st_size,
+                          "reader_seconds": elapsed, "budget_seconds": 2.5}))
+        import advisor_admission
+        with patch.dict(os.environ, {"CODEX_THREAD_ID": THREAD}):
+            evidence = advisor_admission.parent_evidence(THREAD, str(self.sessions))
+        self.assertEqual(evidence["thread_id"], THREAD)
+
+    def test_native_proof_large_history_and_namespace_fit_reader_budget(self):
+        # The small native fixture cannot expose serialized startup plus two
+        # metadata scans and a full history parse competing for the same bound.
+        payload = {"type": "event_msg", "payload": {"text": "x" * 250000}}
+        self.write([*self.safe, *([payload] * 100)])
+        for number in range(32):
+            directory = self.sessions / f"unrelated-{number}"
+            directory.mkdir()
+            for item in range(64):
+                (directory / f"unrelated-{item}.jsonl").write_bytes(b"{}\n")
+        started = time.monotonic()
+        self.available()
+        self.assertLess(time.monotonic() - started, 2.5)
+
+    def test_third_link_and_other_basename_are_rejected(self):
+        self.available()
+        third_dir = self.root / "third"
+        third_dir.mkdir()
+        self.windows_acl(third_dir)
+        third = third_dir / self.name
+        os.link(self.rollout, third)
+        self.assertEqual(self.rollout.stat().st_nlink, 3)
+        self.unavailable()
+        third.unlink()
+        self.available()
+        wrong_name = self.alias.with_name("other-" + self.name)
+        self.alias.rename(wrong_name)
+        self.assertEqual(self.rollout.stat().st_nlink, 2)
+        self.unavailable()
+
+    def test_everyone_write_acl_is_rejected_without_wsl_owner_change(self):
+        self.available()
+        uid = self.rollout.stat().st_uid
+        self.windows_acl(self.rollout, everyone_write=True)
+        self.assertEqual(self.rollout.stat().st_uid, uid)
+        self.unavailable()
+
+    def test_malformed_and_mixed_provenance_are_rejected(self):
+        self.available()
+        for change in ("malformed", "mixed"):
+            with self.subTest(change=change):
+                self.write(self.safe)
+                if change == "malformed":
+                    with self.rollout.open("ab") as stream:
+                        stream.write(b'{"type":"event_msg"\n')
+                else:
+                    self.write([*self.safe, {"type": "turn_context", "payload": {
+                        "sandbox_policy": {"type": "read-only"},
+                        "permission_profile": {"type": "managed"},
+                    }}])
+                self.assertEqual(self.rollout.stat().st_nlink, 2)
+                self.unavailable()
+
+    def test_native_path_replacement_during_read_is_rejected(self):
+        self.available()
+        helper = importlib.import_module("advisor_parent")
+        replacement = self.root / "replacement.jsonl"
+        replacement.write_bytes(self.rollout.read_bytes())
+        self.windows_acl(replacement)
+        real_read = helper.read_records
+        changed = []
+
+        def replace_after_read(*args, **kwargs):
+            result = real_read(*args, **kwargs)
+            os.replace(replacement, self.rollout)
+            changed.append(True)
+            return result
+
+        with patch.object(helper, "read_records", side_effect=replace_after_read):
+            self.unavailable()
+        self.assertEqual(changed, [True], "Mutation must occur inside inspect_parent")
+
+    def test_link_or_alias_change_during_read_is_rejected(self):
+        # Extend the public owner boundary: static bad-link inputs do not prove
+        # that the native handle and the POSIX fd stay bound during parsing.
+        self.available()
+        helper = importlib.import_module("advisor_parent")
+        real_read = helper.read_records
+        for action in ("third-link", "rename-alias"):
+            changed = []
+            target = self.alias_dir / ("other-" + self.name)
+
+            def mutate(*args, **kwargs):
+                result = real_read(*args, **kwargs)
+                if action == "third-link":
+                    os.link(self.rollout, target)
+                else:
+                    self.alias.rename(target)
+                changed.append(True)
+                return result
+
+            try:
+                with self.subTest(action=action), patch.object(helper, "read_records", side_effect=mutate):
+                    with self.assertRaisesRegex(helper.ParentUnavailable, "changed|native_proof"):
+                        helper.inspect_parent(self.sessions, THREAD)
+                self.assertEqual(changed, [True])
+            finally:
+                if action == "third-link":
+                    target.unlink(missing_ok=True)
+                elif target.exists():
+                    target.rename(self.alias)
 
 
 if __name__ == "__main__":

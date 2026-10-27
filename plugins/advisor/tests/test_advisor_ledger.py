@@ -9,8 +9,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from unittest.mock import patch
 
-from advisor_transport_support import AdvisorTransportTestCase, PACKET, PARENT, ROOT
+from advisor_transport_support import AdvisorTransportTestCase, PACKET, PARENT, ROOT, config
+from advisor_canary import authorize_canary
 
 
 def competing_launch(barrier, queue, command, env, packet):
@@ -22,6 +24,30 @@ def competing_launch(barrier, queue, command, env, packet):
 
 
 class AdvisorLedgerTests(AdvisorTransportTestCase):
+    def test_canary_runtime_revision_is_material_but_new_tokens_do_not_bypass_replay(self):
+        def canary(issue, version, *args):
+            environment = {**self.env, "FAKE_CODEX_VERSION": version}
+            with patch.dict(os.environ, environment):
+                token = authorize_canary(
+                    {"model": "gpt-6-astra", "effort": "low"},
+                    paths=self.paths, codex_version=version,
+                )
+            return self.launch("--compatibility-canary", token, "--issue-id", issue,
+                               *args, case="valid", env=environment)
+
+        first = canary("canary-runtime-old", "codex-cli 0.153.2")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        replay = canary("canary-runtime-alias", "codex-cli 0.153.2")
+        self.assertNotEqual(replay.returncode, 0)
+        self.assertIn("canonical packet already consumed", replay.stderr)
+        self.assertEqual(len(self.rows()), 1)
+        revised = canary("canary-runtime-new", "codex-cli 0.164.0",
+                         "--supersedes", "canary-runtime-old",
+                         "--revision-reason", "Installed Codex runtime changed",
+                         "--evidence-digest", "b" * 64)
+        self.assertEqual(revised.returncode, 0, revised.stderr)
+        self.assertEqual(len(self.rows()), 2)
+
     def command(self, *args):
         return [
             "sh",

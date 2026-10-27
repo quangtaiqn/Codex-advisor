@@ -23,6 +23,7 @@ CONFIG_MODULE = ROOT / "scripts" / "advisor_config.py"
 HELPERS = (
     *sorted(path.name for path in CONFIG_MODULE.parent.glob("advisor_*.py")),
     "inspect-agent-runtime.sh",
+    "windows-parent-metadata.ps1",
 )
 SPEC = importlib.util.spec_from_file_location("transport_advisor_config", CONFIG_MODULE)
 assert SPEC and SPEC.loader

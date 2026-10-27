@@ -61,7 +61,7 @@ import sys
 raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
 PY
 command -v jq >/dev/null 2>&1 || fail "jq is unavailable"
-for helper in advisor_ledger.py advisor_ledger_store.py advisor_parent.py advisor_acceptance.py advisor_accounting.py advisor_config.py advisor_state.py advisor_catalog.py advisor_settings.py advisor_journal.py advisor_discovery.py advisor_canary.py advisor_doctor.py advisor_process.py advisor_transport.py advisor_admission.py inspect-agent-runtime.sh inspect-parent-runtime.sh; do
+for helper in advisor_ledger.py advisor_ledger_store.py advisor_parent.py windows-parent-metadata.ps1 advisor_acceptance.py advisor_accounting.py advisor_config.py advisor_state.py advisor_catalog.py advisor_settings.py advisor_journal.py advisor_discovery.py advisor_canary.py advisor_doctor.py advisor_process.py advisor_transport.py advisor_admission.py inspect-agent-runtime.sh inspect-parent-runtime.sh; do
   [ -f "$script_dir/$helper" ] && [ ! -L "$script_dir/$helper" ] || fail "installed Advisor helper is unsafe"
 done
 if [ -n "$canary_token" ]; then
@@ -227,12 +227,43 @@ raise SystemExit(0 if time.monotonic() < float(sys.argv[1]) else 1)
 PY
 }
 if [ -n "$canary_token" ]; then
-  cat >"$packet" <<'ADVISOR_CANARY'
+  canary_context=$(python3 - "$script_dir" "$resolution" <<'PY'
+import hashlib, json, os, stat, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+launch = json.loads(sys.argv[2])["launch"]
+scripts = {}
+for path in sorted(root.glob("advisor_*.py")) + [root / "run-advisor.sh", root / "windows-parent-metadata.ps1"]:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size > 1000000:
+            raise ValueError("unsafe runtime context source")
+        raw = stream.read(1000001)
+        after = os.fstat(stream.fileno())
+        linked = path.stat(follow_symlinks=False)
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_nlink)
+        if len(raw) > 1000000 or identity(before) != identity(after) or identity(after) != identity(linked):
+            raise ValueError("runtime context changed")
+        scripts[path.name] = hashlib.sha256(raw).hexdigest()
+# Tokens, issue/parent IDs, paths, timestamps and catalog counters are not
+# material runtime changes. They cannot create a fresh canonical packet.
+context = {"scripts": scripts, **{key: launch[key] for key in
+           ("model", "effort", "codex_version", "source_revision", "transport_contract_version")}}
+print(hashlib.sha256(json.dumps(context, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+PY
+  ) || fail "compatibility runtime context unavailable"
+  {
+  cat <<'ADVISOR_CANARY'
 DECISION
 Confirm technical compatibility of this fixed synthetic consultation.
 
 CONTEXT
 This is a content-free transport canary authorized by the user.
+ADVISOR_CANARY
+  printf 'Installed runtime context SHA-256: %s\n' "$canary_context"
+  cat <<'ADVISOR_CANARY'
 
 OPTIONS
 Return a schema-valid neutral response.
@@ -243,6 +274,7 @@ Use zero tools and only the configured read-only model transport.
 REQUEST
 Return the required JSON object with a neutral recommendation and concrete transport acceptance checks.
 ADVISOR_CANARY
+  } >"$packet"
 else
   exec 3<&0
   python3 "$script_dir/advisor_process.py" --deadline-at "$deadline_at" --capture-to "$packet" <&3 &

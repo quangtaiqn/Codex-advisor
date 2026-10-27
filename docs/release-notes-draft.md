@@ -10,11 +10,28 @@ misplaced context, tools, model/effort changes and unsafe provenance still fail
 closed. This addresses the observed CLI 0.162.1 message-count failure; it does not
 claim a historical `rollout_changed` fix or accepted installed E2E proof.
 
+## Windows Desktop parent identity
+
+The parent reader accepts a two-link NTFS rollout only with native Windows
+proof. Both aliases must use the same filename. File identity, Windows owner,
+write permissions and metadata must remain stable through parsing and namespace
+checks. Unsupported mounts and incomplete proof fail closed. The single-link
+path, strict JSONL checks and existing deadlines remain unchanged.
+Native startup overlaps the first full metadata scan. A preliminary lookup is
+only a startup hint. Both full scans still prove identity and uniqueness, and
+native evidence is checked before parsing starts.
+
+Compatibility canaries now include a digest of the installed runtime code,
+Codex version and selected model policy. A real runtime change can use the
+existing material-revision route. Tokens, issue and parent IDs, file paths and
+catalog counters do not change the canary packet. Replaying the same runtime
+context under a new issue still fails the canonical-packet guard.
+
 Repository-only candidate; not released, deployed, installed or live-verified. Adds durable owner-private reservations, canonical replay prevention, consumed receipts, explicit reconcile/transfer and conservative A migration. Envelope4/transport1.6; no retry/fallback or live capability/publication claim. Every entry still starts Astra/low with adjacent local escalation and the existing read-only/zero-tool safety guards.
 
 A-P1-01 provider-schema compatibility and local escalation validation remain intact. Baseline A is ca963d330db8207bded885659e2f9376224f8678. Offline tests do not establish live provider acceptance.
 
-Candidate content digest: `48b00edc0011cd1137a015322a45f5f35be4a69280a4d7dd747bd4b14916c404`.
+Candidate content digest: `cc27163319029f3a5420997e83788a80d8a226b269b92af50b773a6f39b9e923`.
 
 R3 replaces parent rollout slurping with bounded strict JSONL streaming. Acceptance still requires a complete, stable history with one matching identity and consistent allowed provenance. Duplicate keys, invalid UTF-8, unfinished tails, unsafe links/owners and resource-bound violations fail closed. Probe deadlines, local escalation and the one-child limit are unchanged. This local correction has scoped offline verification; it does not establish live, installed or public website readiness.
 
