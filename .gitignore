@@ -9,3 +9,27 @@ verifications/
 handoff.md
 .worktrees/
 /Codex-Advisor-*.zip
+
+# Local investigation history, retained on disk and outside source Git.
+/merge-completion-evidence/
+/E/manager-update-survey-attempt1.md
+/CONTINUATION-HANDOFF-20261015.md
+/CONTINUE-GOAL-A-PROMPT-20261015.md
+/CP4-UNBLOCK-EXECUTION-REPORT-20261016.md
+/HANDOVER-EXECUTION-STATE.md
+/MERGE-COMPLETION-EXECUTION-PLAN-20261015.md
+/MERGE-COMPLETION-EXECUTION-REPORT-20261015.md
+/MERGE-COMPLETION-REPORT-20261024-CP7.md
+/MERGE-COMPLETION-REPORT-20261025-CP7.md
+/continuation-evidence-index-20261015.json
+/continuation-handoff-integrity-20261015.json
+/continuation-reporter-rejection-20261015.json
+/continuation-runtime-final-20261015.json
+/coordination-r4-20261015.md
+/manager-v3-execution-plan.md
+/r4-handoff-reporter-contract-20261015.md
+/review-packet-bootstrap-v3.md
+
+# Generated local caches.
+.ruff_cache/
+.pytest_cache/
