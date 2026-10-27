@@ -2,14 +2,16 @@
 
 import errno
 import fcntl
+import hashlib
 import os
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 from advisor_transport_support import config
 from advisor_ledger_store import Store, MAX_ISSUES
-from advisor_ledger import canonical_packet, project_identity
+from advisor_ledger import canonical_packet, project_identity, reserve
 
 
 class LedgerStorageTests(unittest.TestCase):
@@ -63,7 +65,59 @@ class LedgerStorageTests(unittest.TestCase):
         second.write_text(
             "DECISION\nobserved 2026-10-13T13:00:00Z evidence\nREQUEST\nchallenge\n"
         )
-        self.assertEqual(canonical_packet(first), canonical_packet(second))
+        self.assertNotEqual(canonical_packet(first), canonical_packet(second))
+        for before, after in [
+            ("2026-10-27", "2026-10-28"),
+            ("2026-10-27T09:30:00Z", "2026-10-27T10:30:00Z"),
+        ]:
+            with self.subTest(business_time=before):
+                packet = (
+                    "DECISION\nSelect the delivery plan.\nCONTEXT\n"
+                    "The delivery cutoff is {}.\nOPTIONS\nUse the plan.\n"
+                    "BOUNDARIES\nNo deployment.\nREQUEST\nAssess the cutoff.\n"
+                )
+                first.write_text(packet.format(before))
+                second.write_text(packet.format(after))
+                self.assertNotEqual(canonical_packet(first), canonical_packet(second))
+
+    def test_legacy_timestamp_identity_does_not_reopen_consumed_packet(self):
+        import subprocess
+
+        project = Path(self.tmp.name) / "project"
+        project.mkdir()
+        subprocess.run(["git", "init", "-q", str(project)], check=True)
+        packet = Path(self.tmp.name) / "packet.txt"
+        text = (
+            "DECISION\nSelect a plan.\nCONTEXT\nThe cutoff is {}.\n"
+            "OPTIONS\nOne plan.\nBOUNDARIES\nNo deployment.\nREQUEST\nAssess.\n"
+        )
+        original = text.format("2026-10-27")
+        # A version-1 record hashes the old canonical text and binds the raw
+        # original packet. Construct that persisted shape without a test-only API.
+        packet.write_text(text.format("<timestamp>"))
+        args = Namespace(
+            issue="legacy-date", project_root=str(project), level="low",
+            execution="legacy-execution", policy="sha256:" + "a" * 64,
+            packet=str(packet), source='{"kind":"offline-fixture"}',
+            launcher_pid=os.getpid(), receipt=None, supersedes=None,
+            reason="", evidence="", parent="fixture-parent",
+        )
+        reserve(self.store, args)
+        with self.store.transaction(mutate=True) as body:
+            issue = next(iter(body["issues"].values()))
+            issue.pop("canonical_version", None)
+            issue["executions"]["low"]["raw_packet"] = hashlib.sha256(
+                original.encode()
+            ).hexdigest()
+        before = (self.root / "registry.json").read_bytes()
+        args.issue = "renamed-legacy"
+        args.execution = "new-execution"
+        for content in [original, original.replace("cutoff", "  cutoff  ")]:
+            with self.subTest(packet=content):
+                packet.write_text(content)
+                with self.assertRaisesRegex(config.ConfigError, "legacy|consumed"):
+                    reserve(self.store, args)
+                self.assertEqual((self.root / "registry.json").read_bytes(), before)
 
     def test_project_identity_is_stable_across_real_git_worktrees(self):
         import subprocess

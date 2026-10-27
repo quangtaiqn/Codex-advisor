@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from advisor_transport_support import AdvisorTransportTestCase, PACKET, PARENT, ROOT, config
+from advisor_transport_support import AdvisorTransportTestCase, PACKET, PARENT, ROOT
 from advisor_canary import authorize_canary
 
 
@@ -257,13 +257,13 @@ class AdvisorLedgerTests(AdvisorTransportTestCase):
             queue.close()
 
     def test_independent_issue_and_material_revision_do_not_share_quota(self):
-        self.save_receipt(self.launch(case="valid"))
+        packet = PACKET.replace("evidence", "The delivery cutoff is 2026-10-27")
+        self.save_receipt(self.launch(case="valid", packet=packet))
         second = self.launch(
             "--issue-id",
             "independent",
-            packet=PACKET.replace("question", "different real question"),
+            packet=packet.replace("2026-10-27", "2026-10-28"),
         )
-        self.assertEqual(second.returncode, 0, second.stderr)
         revision = self.launch(
             "--issue-id",
             "revision",
@@ -273,15 +273,18 @@ class AdvisorLedgerTests(AdvisorTransportTestCase):
             "new evidence changes the boundary",
             "--evidence-digest",
             "a" * 64,
-            packet=PACKET.replace("evidence", "new independently observed evidence"),
+            packet=packet.replace("2026-10-27", "2026-10-29"),
         )
-        self.assertEqual(revision.returncode, 0, revision.stderr)
+        self.assertEqual(
+            (second.returncode, revision.returncode), (0, 0),
+            (second.stderr, revision.stderr),
+        )
         invalid = self.launch(
             "--issue-id",
             "invalid-revision",
             "--supersedes",
             "durable-issue",
-            packet=PACKET.replace("evidence", "other evidence"),
+            packet=packet.replace("2026-10-27", "2026-10-30"),
         )
         self.assertNotEqual(invalid.returncode, 0)
         self.assertIn("material revision", invalid.stderr)

@@ -24,6 +24,7 @@ from advisor_state import (
 
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 HEX = re.compile(r"[0-9a-f]{64}")
+CANONICAL_VERSION = 2
 
 
 def project_identity(root):
@@ -53,18 +54,35 @@ def project_identity(root):
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def canonical_packet(packet):
+def canonical_packet(packet, *, legacy_timestamps=False):
     text = unicodedata.normalize("NFC", bounded_file(Path(packet)).decode("utf-8"))
-    # Formatting/observation timestamps alone are not materially new evidence.
-    text = re.sub(
-        r"\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b",
-        "<timestamp>",
-        text,
-    )
+    # Packet text has no typed observation-metadata field. Dates and times can
+    # carry decision evidence, so only legacy lookup may erase them.
+    if legacy_timestamps:
+        text = re.sub(
+            r"\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b",
+            "<timestamp>",
+            text,
+        )
     lines = [" ".join(line.split()) for line in text.splitlines()]
     return hashlib.sha256(
         "\n".join(line for line in lines if line).encode()
     ).hexdigest()
+
+
+def reject_legacy_date_alias(body, project, canonical, legacy):
+    if canonical == legacy:
+        return
+    old_key = body["canonical"].get(digest([project, legacy]))
+    if old_key is not None:
+        version = body["issues"][old_key].get("canonical_version", 1)
+        if type(version) is not int or version != CANONICAL_VERSION:
+            # Old digests lost the dates. Do not guess whether this is a real
+            # revision or a renamed replay, or rewrite receipt-bound identities.
+            raise ConfigError(
+                "legacy date-normalized packet identity requires explicit review; "
+                "no automatic migration or replay"
+            )
 
 
 def identity(args):
@@ -133,6 +151,7 @@ def reserve(store, args):
     ):
         raise ConfigError("invalid ledger execution/policy")
     canonical = canonical_packet(args.packet)
+    legacy = canonical_packet(args.packet, legacy_timestamps=True)
     raw = hashlib.sha256(bounded_file(Path(args.packet))).hexdigest()
     source = json.loads(args.source, object_pairs_hook=_duplicate_key)
     owner = process_identity(args.launcher_pid or os.getppid())
@@ -141,6 +160,7 @@ def reserve(store, args):
     prior = receipt_file(args.receipt) if args.receipt else None
     binding = None
     with store.transaction(mutate=True) as body:
+        reject_legacy_date_alias(body, project, canonical, legacy)
         canonical_key = digest([project, canonical])
         registered = body["canonical"].get(canonical_key)
         if registered is not None and registered != key:
@@ -178,6 +198,7 @@ def reserve(store, args):
                 "id": args.issue,
                 "project": project,
                 "canonical": canonical,
+                "canonical_version": CANONICAL_VERSION,
                 "canonical_key": canonical_key,
                 "policy": args.policy,
                 "parent": args.parent,
@@ -511,7 +532,9 @@ def import_a(store, args):
         else:
             os.environ["CODEX_THREAD_ID"] = prior_parent
     canonical = canonical_packet(args.packet)
+    legacy = canonical_packet(args.packet, legacy_timestamps=True)
     with store.transaction(mutate=True) as body:
+        reject_legacy_date_alias(body, project, canonical, legacy)
         canonical_key = digest([project, canonical])
         if (
             key in body["issues"]
@@ -525,6 +548,7 @@ def import_a(store, args):
             "id": args.issue,
             "project": project,
             "canonical": canonical,
+            "canonical_version": CANONICAL_VERSION,
             "canonical_key": canonical_key,
             "policy": receipt["selection"]["source_revision"],
             "parent": receipt["runtime"]["parent_thread_id"],
